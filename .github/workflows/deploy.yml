@@ -46,8 +46,8 @@ jobs:
         run: ./gradlew clean bootJar
       - name: Check Docker
         run: |
-          docker version
-          docker compose version
+          /usr/local/bin/docker version
+          /usr/local/bin/docker compose version
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Prepare Docker config
@@ -84,11 +84,10 @@ jobs:
       - name: Deploy app container
         run: |
           cd "${APP_DIR}"
-          docker compose pull app
-          docker compose up -d --no-deps app
-          docker compose ps
+          /usr/local/bin/docker compose pull app
+          /usr/local/bin/docker compose up -d --no-deps app
       - name: Show app logs
-        if: always()
+        if: failure()
         run: |
           cd "${APP_DIR}"
-          docker compose logs --tail=100 app
+          /usr/local/bin/docker compose logs --tail=100 app
