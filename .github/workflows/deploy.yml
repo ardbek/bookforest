@@ -54,10 +54,9 @@ jobs:
 
       - name: Prepare Docker config
         run: |
-          mkdir -p "$DOCKER_CONFIG/cli-plugins"
+          rm -rf "$DOCKER_CONFIG"
+          mkdir -p "$DOCKER_CONFIG"
           echo '{"auths":{}}' > "$DOCKER_CONFIG/config.json"
-          cp ~/.docker/cli-plugins/docker-compose "$DOCKER_CONFIG/cli-plugins/docker-compose" || true
-          chmod +x "$DOCKER_CONFIG/cli-plugins/docker-compose" || true
 
       - name: Check Docker
         run: |
@@ -68,11 +67,10 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Login to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ardbek
-          password: ${{ secrets.GHCR_TOKEN }}
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker --config "$DOCKER_CONFIG" login ghcr.io -u ardbek --password-stdin
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -100,11 +98,11 @@ jobs:
       - name: Deploy app container
         run: |
           cd "${APP_DIR}"
-          docker-compose pull app
-          docker-compose up -d --no-deps app
+          /usr/local/bin/docker-compose pull app
+          /usr/local/bin/docker-compose up -d --no-deps app
 
       - name: Show app logs
         if: failure()
         run: |
           cd "${APP_DIR}"
-          docker-compose logs --tail=100 app
+          /usr/local/bin/docker-compose logs --tail=100 app
