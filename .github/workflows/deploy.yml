@@ -1,0 +1,92 @@
+name: Build and Deploy to Home Server
+
+#on:
+#  push:
+#    branches:
+#      - main
+#  workflow_dispatch:
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: bookforest-deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/ardbek/bookforest
+  APP_DIR: /Users/hedgehog/homelab/apps/bookforest-api
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted, macOS, ARM64, homelab]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set image tag
+        run: |
+          SHORT_SHA="$(git rev-parse --short=7 HEAD)"
+          echo "IMAGE_TAG=sha-${SHORT_SHA}" >> "$GITHUB_ENV"
+      - name: Prepare PATH
+        run: |
+          echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - name: Grant execute permission for Gradle
+        run: chmod +x ./gradlew
+      - name: Test
+        run: ./gradlew test
+      - name: Build JAR
+        run: ./gradlew clean bootJar
+      - name: Check Docker
+        run: |
+          docker version
+          docker compose version
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/arm64
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE_NAME }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Update APP_VERSION
+        run: |
+          cd "${APP_DIR}"
+          if grep -q '^APP_VERSION=' .env; then
+            perl -i.bak -pe "s/^APP_VERSION=.*/APP_VERSION=${IMAGE_TAG}/" .env
+          else
+            echo "APP_VERSION=${IMAGE_TAG}" >> .env
+          fi
+          echo "Updated APP_VERSION=${IMAGE_TAG}"
+      - name: Deploy app container
+        run: |
+          cd "${APP_DIR}"
+          docker compose pull app
+          docker compose up -d --no-deps app
+          docker compose ps
+      - name: Show app logs
+        if: always()
+        run: |
+          cd "${APP_DIR}"
+          docker compose logs --tail=100 app
