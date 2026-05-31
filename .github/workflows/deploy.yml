@@ -1,12 +1,9 @@
 name: Build and Deploy to Home Server
 
-#on:
-#  push:
-#    branches:
-#      - main
-#  workflow_dispatch:
-
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
