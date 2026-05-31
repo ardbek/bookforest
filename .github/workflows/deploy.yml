@@ -55,7 +55,7 @@ jobs:
       - name: Prepare Docker config
         run: |
           mkdir -p "$DOCKER_CONFIG/cli-plugins"
-          echo '{"auths":{},"currentContext":"orbstack"}' > "$DOCKER_CONFIG/config.json"
+          echo '{"auths":{}}' > "$DOCKER_CONFIG/config.json"
           cp ~/.docker/cli-plugins/docker-compose "$DOCKER_CONFIG/cli-plugins/docker-compose" || true
           chmod +x "$DOCKER_CONFIG/cli-plugins/docker-compose" || true
 
