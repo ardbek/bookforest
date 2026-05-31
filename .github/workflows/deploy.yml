@@ -17,7 +17,6 @@ concurrency:
 env:
   IMAGE_NAME: ghcr.io/ardbek/bookforest
   APP_DIR: /Users/hedgehog/homelab/apps/bookforest-api
-  DOCKER_CONFIG: /Users/hedgehog/homelab/apps/bookforest-api/.docker-ci
 
 jobs:
   build-and-deploy:
@@ -46,14 +45,12 @@ jobs:
         run: ./gradlew clean bootJar
       - name: Check Docker
         run: |
-          /usr/local/bin/docker version
-          /usr/local/bin/docker compose version
+          whoami
+          echo $HOME
+          cat ~/.docker/config.json
+          docker compose version
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
-      - name: Prepare Docker config
-        run: |
-          mkdir -p "$DOCKER_CONFIG"
-          echo '{"auths":{},"currentContext":"orbstack"}' > "$DOCKER_CONFIG/config.json"
       - name: Login to GHCR
         uses: docker/login-action@v4
         with:
