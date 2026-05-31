@@ -53,10 +53,16 @@ jobs:
         run: ./gradlew clean bootJar
 
       - name: Prepare Docker config
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
           rm -rf "$DOCKER_CONFIG"
           mkdir -p "$DOCKER_CONFIG"
-          echo '{"auths":{}}' > "$DOCKER_CONFIG/config.json"
+          AUTH="$(printf '%s:%s' 'ardbek' "$GHCR_TOKEN" | base64 | tr -d '\n')"
+          cat > "$DOCKER_CONFIG/config.json" <<EOF
+          { "auths": { "ghcr.io": { "auth": "$AUTH" } } }
+          EOF
+          chmod 600 "$DOCKER_CONFIG/config.json"
 
       - name: Check Docker
         run: |
@@ -65,12 +71,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
-
-      - name: Login to GHCR
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-        run: |
-          printf '%s' "$GHCR_TOKEN" | docker --config "$DOCKER_CONFIG" login ghcr.io -u ardbek --password-stdin
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
