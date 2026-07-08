@@ -10,7 +10,21 @@ import lombok.*;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 @Entity
-@Table(name = "book_category")
+@Table(
+    name = "book_category",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_book_category",
+            columnNames = {"book_id", "standard_category_id"}
+        )
+    },
+    indexes = {
+        @Index(
+            name = "idx_book_category_category",
+            columnList = "standard_category_id, book_id"
+        )
+    }
+)
 public class BookCategory extends BaseTimeEntity {
 
     /* 도서 카테고리 ID */

@@ -39,6 +39,14 @@ public class StandardCategory extends BaseTimeEntity {
     @JoinColumn(name = "parent_category_id")
     private StandardCategory parentCategory;
 
+    /* 조상 포함 경로 (예: 소설>한국소설) */
+    @Column(name = "category_path", length = 500)
+    private String categoryPath;
+
+    /* 자동 매핑용 별칭. 정규화(소문자화 + 공백,'/','·','.','-' 제거) 형태, 콤마 구분 */
+    @Column(name = "aliases", length = 1000)
+    private String aliases;
+
     /* 깊이 */
     @Column(name = "depth", nullable = false)
     @Builder.Default
