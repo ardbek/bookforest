@@ -33,8 +33,7 @@ public class SubscriptionBook extends BaseTimeEntity {
     /*
      * 대표 도서
      *
-     * BookOrigin -> BookMatch -> Book 으로 알 수 있지만,
-     * 구독 플랫폼 필터 검색 성능을 위해 중복 저장
+     * 구독 플랫폼 필터 검색 성능을 위해 중복 저장.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "book_id")

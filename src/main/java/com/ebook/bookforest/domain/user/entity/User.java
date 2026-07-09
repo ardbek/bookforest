@@ -41,22 +41,4 @@ public class User extends BaseTimeEntity {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean active = true;
-
-    public void updateProfile(
-        String displayName,
-        String email,
-        String profileImageUrl
-    ) {
-        this.displayName = displayName;
-        this.email = email;
-        this.profileImageUrl = profileImageUrl;
-    }
-
-    public void deactivate() {
-        this.active = false;
-    }
-
-    public void activate() {
-        this.active = true;
-    }
 }

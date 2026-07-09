@@ -47,12 +47,4 @@ public class BookCategory extends BaseTimeEntity {
     @Column(name = "is_primary", nullable = false)
     @Builder.Default
     private boolean primary = false;
-
-    public void markPrimary() {
-        this.primary = true;
-    }
-
-    public void unmarkPrimary() {
-        this.primary = false;
-    }
 }

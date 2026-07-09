@@ -41,7 +41,6 @@ public class LibraryBook extends BaseTimeEntity {
     /*
      * 대표 도서
      *
-     * BookOrigin -> BookMatch -> Book 으로 알 수 있지만,
      * 도서 검색 필터 성능을 위해 중복 저장.
      */
     @ManyToOne(fetch = FetchType.LAZY)
