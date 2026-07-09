@@ -3,14 +3,17 @@ package com.ebook.bookforest.domain.book.service;
 import com.ebook.bookforest.domain.book.dto.BookPlatformSummaryResponse;
 import com.ebook.bookforest.domain.book.dto.BookSearchPageResponse;
 import com.ebook.bookforest.domain.book.dto.BookSearchResponse;
+import com.ebook.bookforest.domain.book.dto.BookSubscriptionPlatformResponse;
 import com.ebook.bookforest.domain.book.entity.Book;
 import com.ebook.bookforest.domain.book.enums.BookSearchType;
 import com.ebook.bookforest.domain.book.repository.BookCategorySummary;
 import com.ebook.bookforest.domain.book.repository.BookPlatformSummary;
 import com.ebook.bookforest.domain.book.repository.BookRepository;
 import com.ebook.bookforest.domain.book.repository.BookSearchCondition;
+import com.ebook.bookforest.domain.book.repository.BookSubscriptionPlatformLink;
 import com.ebook.bookforest.domain.user.repository.FavoriteBookRepository;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,6 +54,8 @@ public class BookSearchService {
         List<BookPlatformSummaryResponse> subscriptionPlatforms =
             groupPlatformSummaries(bookRepository.findSubscriptionPlatformSummaries(bookIds))
                 .getOrDefault(book.getId(), List.of());
+        List<BookSubscriptionPlatformResponse> subscriptionPlatformLinks =
+            resolveSubscriptionPlatformLinks(bookRepository.findSubscriptionPlatformLinks(bookIds));
         boolean favoriteYn = findFavoriteBookIds(userId, bookIds).contains(book.getId());
 
         return BookSearchResponse.from(
@@ -58,6 +63,7 @@ public class BookSearchService {
             category,
             libraryPlatforms,
             subscriptionPlatforms,
+            subscriptionPlatformLinks,
             favoriteYn
         );
     }
@@ -137,6 +143,27 @@ public class BookSearchService {
                         .toList()
                 )
             ));
+    }
+
+    private List<BookSubscriptionPlatformResponse> resolveSubscriptionPlatformLinks(
+        List<BookSubscriptionPlatformLink> links
+    ) {
+        Map<Long, BookSubscriptionPlatformResponse> platformsById = new LinkedHashMap<>();
+
+        for (BookSubscriptionPlatformLink link : links) {
+            BookSubscriptionPlatformResponse next = BookSubscriptionPlatformResponse.from(link);
+            BookSubscriptionPlatformResponse current = platformsById.get(link.platformId());
+
+            if (current == null || (isBlank(current.bookUrl()) && !isBlank(next.bookUrl()))) {
+                platformsById.put(link.platformId(), next);
+            }
+        }
+
+        return List.copyOf(platformsById.values());
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     /**

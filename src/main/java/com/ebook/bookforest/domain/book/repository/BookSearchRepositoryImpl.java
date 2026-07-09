@@ -120,6 +120,37 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
     }
 
     @Override
+    public List<BookSubscriptionPlatformLink> findSubscriptionPlatformLinks(List<Long> bookIds) {
+        if (bookIds == null || bookIds.isEmpty()) {
+            return List.of();
+        }
+
+        return entityManager.createQuery(
+                """
+                    select new com.ebook.bookforest.domain.book.repository.BookSubscriptionPlatformLink(
+                        sb.book.id,
+                        p.id,
+                        p.platformCode,
+                        p.platformName,
+                        coalesce(sb.bookUrl, bo.bookUrl)
+                    )
+                    from SubscriptionBook sb
+                    join sb.bookOrigin bo
+                    join bo.platform p
+                    where sb.book.id in :bookIds
+                      and sb.availabilityStatus = :available
+                      and bo.active = true
+                      and p.supportsSubscription = true
+                    order by p.platformName asc, p.id asc, sb.id asc
+                    """,
+                BookSubscriptionPlatformLink.class
+            )
+            .setParameter("bookIds", bookIds)
+            .setParameter("available", AvailabilityStatus.AVAILABLE)
+            .getResultList();
+    }
+
+    @Override
     public List<BookCategorySummary> findPrimaryCategorySummaries(List<Long> bookIds) {
         if (bookIds == null || bookIds.isEmpty()) {
             return List.of();

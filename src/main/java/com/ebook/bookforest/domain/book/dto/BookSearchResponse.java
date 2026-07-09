@@ -3,6 +3,7 @@ package com.ebook.bookforest.domain.book.dto;
 import com.ebook.bookforest.domain.book.entity.Book;
 import com.ebook.bookforest.domain.book.repository.BookCategorySummary;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 
 public record BookSearchResponse(
@@ -24,6 +25,7 @@ public record BookSearchResponse(
     long subscriptionPlatformCount,
     List<BookPlatformSummaryResponse> libraryPlatforms,
     List<BookPlatformSummaryResponse> subscriptionPlatforms,
+    List<BookSubscriptionPlatformResponse> subscriptionPlatformLinks,
     boolean favoriteYn
 ) {
 
@@ -32,6 +34,24 @@ public record BookSearchResponse(
         BookCategorySummary category,
         List<BookPlatformSummaryResponse> libraryPlatforms,
         List<BookPlatformSummaryResponse> subscriptionPlatforms,
+        boolean favoriteYn
+    ) {
+        return from(
+            book,
+            category,
+            libraryPlatforms,
+            subscriptionPlatforms,
+            Collections.emptyList(),
+            favoriteYn
+        );
+    }
+
+    public static BookSearchResponse from(
+        Book book,
+        BookCategorySummary category,
+        List<BookPlatformSummaryResponse> libraryPlatforms,
+        List<BookPlatformSummaryResponse> subscriptionPlatforms,
+        List<BookSubscriptionPlatformResponse> subscriptionPlatformLinks,
         boolean favoriteYn
     ) {
         long libraryCount = libraryPlatforms.stream()
@@ -57,6 +77,7 @@ public record BookSearchResponse(
             subscriptionPlatforms.size(),
             libraryPlatforms,
             subscriptionPlatforms,
+            subscriptionPlatformLinks,
             favoriteYn
         );
     }

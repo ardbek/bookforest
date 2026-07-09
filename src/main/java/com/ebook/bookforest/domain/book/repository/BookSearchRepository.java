@@ -13,5 +13,7 @@ public interface BookSearchRepository {
 
     List<BookPlatformSummary> findSubscriptionPlatformSummaries(List<Long> bookIds);
 
+    List<BookSubscriptionPlatformLink> findSubscriptionPlatformLinks(List<Long> bookIds);
+
     List<BookCategorySummary> findPrimaryCategorySummaries(List<Long> bookIds);
 }
