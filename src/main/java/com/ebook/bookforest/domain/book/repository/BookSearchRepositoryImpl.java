@@ -151,6 +151,44 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
     }
 
     @Override
+    public List<BookLibraryHolding> findLibraryHoldings(List<Long> bookIds) {
+        if (bookIds == null || bookIds.isEmpty()) {
+            return List.of();
+        }
+
+        return entityManager.createQuery(
+                """
+                    select new com.ebook.bookforest.domain.book.repository.BookLibraryHolding(
+                        lb.book.id,
+                        p.id,
+                        p.platformCode,
+                        p.platformName,
+                        l.id,
+                        l.libraryCode,
+                        l.libraryName,
+                        l.siteUrl,
+                        coalesce(lb.bookUrl, bo.bookUrl),
+                        coalesce(lb.coverImgUrl, bo.coverImgUrl),
+                        lb.availabilityStatus
+                    )
+                    from LibraryBook lb
+                    join lb.bookOrigin bo
+                    join lb.library l
+                    join l.platform p
+                    where lb.book.id in :bookIds
+                      and lb.availabilityStatus = :available
+                      and l.visible = true
+                      and p.supportsLibrary = true
+                    order by p.platformName asc, p.id asc, l.libraryName asc, l.id asc, lb.id asc
+                    """,
+                BookLibraryHolding.class
+            )
+            .setParameter("bookIds", bookIds)
+            .setParameter("available", AvailabilityStatus.AVAILABLE)
+            .getResultList();
+    }
+
+    @Override
     public List<BookCategorySummary> findPrimaryCategorySummaries(List<Long> bookIds) {
         if (bookIds == null || bookIds.isEmpty()) {
             return List.of();

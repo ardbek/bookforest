@@ -1,12 +1,15 @@
 package com.ebook.bookforest.domain.book.service;
 
 import com.ebook.bookforest.domain.book.dto.BookPlatformSummaryResponse;
+import com.ebook.bookforest.domain.book.dto.BookLibraryHoldingResponse;
+import com.ebook.bookforest.domain.book.dto.BookLibraryPlatformHoldingResponse;
 import com.ebook.bookforest.domain.book.dto.BookSearchPageResponse;
 import com.ebook.bookforest.domain.book.dto.BookSearchResponse;
 import com.ebook.bookforest.domain.book.dto.BookSubscriptionPlatformResponse;
 import com.ebook.bookforest.domain.book.entity.Book;
 import com.ebook.bookforest.domain.book.enums.BookSearchType;
 import com.ebook.bookforest.domain.book.repository.BookCategorySummary;
+import com.ebook.bookforest.domain.book.repository.BookLibraryHolding;
 import com.ebook.bookforest.domain.book.repository.BookPlatformSummary;
 import com.ebook.bookforest.domain.book.repository.BookRepository;
 import com.ebook.bookforest.domain.book.repository.BookSearchCondition;
@@ -56,6 +59,8 @@ public class BookSearchService {
                 .getOrDefault(book.getId(), List.of());
         List<BookSubscriptionPlatformResponse> subscriptionPlatformLinks =
             resolveSubscriptionPlatformLinks(bookRepository.findSubscriptionPlatformLinks(bookIds));
+        List<BookLibraryPlatformHoldingResponse> libraryPlatformHoldings =
+            resolveLibraryPlatformHoldings(bookRepository.findLibraryHoldings(bookIds));
         boolean favoriteYn = findFavoriteBookIds(userId, bookIds).contains(book.getId());
 
         return BookSearchResponse.from(
@@ -64,6 +69,7 @@ public class BookSearchService {
             libraryPlatforms,
             subscriptionPlatforms,
             subscriptionPlatformLinks,
+            libraryPlatformHoldings,
             favoriteYn
         );
     }
@@ -162,8 +168,69 @@ public class BookSearchService {
         return List.copyOf(platformsById.values());
     }
 
+    private List<BookLibraryPlatformHoldingResponse> resolveLibraryPlatformHoldings(
+        List<BookLibraryHolding> holdings
+    ) {
+        Map<Long, LibraryPlatformHoldingAccumulator> platformsById = new LinkedHashMap<>();
+
+        for (BookLibraryHolding holding : holdings) {
+            LibraryPlatformHoldingAccumulator platform = platformsById.computeIfAbsent(
+                holding.platformId(),
+                ignored -> new LibraryPlatformHoldingAccumulator(
+                    holding.platformId(),
+                    holding.platformCode(),
+                    holding.platformName()
+                )
+            );
+
+            BookLibraryHoldingResponse next = BookLibraryHoldingResponse.from(holding);
+            BookLibraryHoldingResponse current = platform.librariesById.get(holding.libraryId());
+
+            if (current == null || shouldReplaceLibraryHolding(current, next)) {
+                platform.librariesById.put(holding.libraryId(), next);
+            }
+        }
+
+        return platformsById.values()
+            .stream()
+            .map(platform -> BookLibraryPlatformHoldingResponse.of(
+                platform.platformId,
+                platform.platformCode,
+                platform.platformName,
+                List.copyOf(platform.librariesById.values())
+            ))
+            .toList();
+    }
+
+    private boolean shouldReplaceLibraryHolding(
+        BookLibraryHoldingResponse current,
+        BookLibraryHoldingResponse next
+    ) {
+        return (isBlank(current.bookUrl()) && !isBlank(next.bookUrl()))
+            || (isBlank(current.coverImgUrl()) && !isBlank(next.coverImgUrl()))
+            || (isBlank(current.siteUrl()) && !isBlank(next.siteUrl()));
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private static class LibraryPlatformHoldingAccumulator {
+
+        private final Long platformId;
+        private final String platformCode;
+        private final String platformName;
+        private final Map<Long, BookLibraryHoldingResponse> librariesById = new LinkedHashMap<>();
+
+        private LibraryPlatformHoldingAccumulator(
+            Long platformId,
+            String platformCode,
+            String platformName
+        ) {
+            this.platformId = platformId;
+            this.platformCode = platformCode;
+            this.platformName = platformName;
+        }
     }
 
     /**

@@ -26,6 +26,7 @@ public record BookSearchResponse(
     List<BookPlatformSummaryResponse> libraryPlatforms,
     List<BookPlatformSummaryResponse> subscriptionPlatforms,
     List<BookSubscriptionPlatformResponse> subscriptionPlatformLinks,
+    List<BookLibraryPlatformHoldingResponse> libraryPlatformHoldings,
     boolean favoriteYn
 ) {
 
@@ -42,6 +43,7 @@ public record BookSearchResponse(
             libraryPlatforms,
             subscriptionPlatforms,
             Collections.emptyList(),
+            Collections.emptyList(),
             favoriteYn
         );
     }
@@ -52,6 +54,7 @@ public record BookSearchResponse(
         List<BookPlatformSummaryResponse> libraryPlatforms,
         List<BookPlatformSummaryResponse> subscriptionPlatforms,
         List<BookSubscriptionPlatformResponse> subscriptionPlatformLinks,
+        List<BookLibraryPlatformHoldingResponse> libraryPlatformHoldings,
         boolean favoriteYn
     ) {
         long libraryCount = libraryPlatforms.stream()
@@ -78,6 +81,7 @@ public record BookSearchResponse(
             libraryPlatforms,
             subscriptionPlatforms,
             subscriptionPlatformLinks,
+            libraryPlatformHoldings,
             favoriteYn
         );
     }

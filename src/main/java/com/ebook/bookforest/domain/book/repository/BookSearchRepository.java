@@ -15,5 +15,7 @@ public interface BookSearchRepository {
 
     List<BookSubscriptionPlatformLink> findSubscriptionPlatformLinks(List<Long> bookIds);
 
+    List<BookLibraryHolding> findLibraryHoldings(List<Long> bookIds);
+
     List<BookCategorySummary> findPrimaryCategorySummaries(List<Long> bookIds);
 }
