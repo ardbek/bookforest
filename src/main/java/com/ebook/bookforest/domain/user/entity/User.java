@@ -44,8 +44,8 @@ public class User extends BaseTimeEntity {
     private boolean active = true;
 
     /* 탈퇴일 */
-    @Column(name="withdraw_at")
-    private LocalDateTime withdrawAt;
+    @Column(name="withdrawn")
+    private LocalDateTime withdrawn;
 
     /* 프로필 수정 */
     public void updateProfile(
@@ -57,15 +57,15 @@ public class User extends BaseTimeEntity {
     }
 
     /* 회원 탈퇴 */
-    public void withdraw(LocalDateTime withdrawAt) {
+    public void withdraw(LocalDateTime withdrawn) {
         if(!active) {
             throw new IllegalStateException("이미 탈퇴한 사용자입니다.");
         }
 
         this.active = false;
-        this.withdrawAt = withdrawAt;
+        this.withdrawn = withdrawn;
 
-        // TODO; 탈퇴 정책 정의 후 정리
+        // 개인정보 익명화
         this.displayName = null;
         this.email = null;
         this.profileImageUrl = null;

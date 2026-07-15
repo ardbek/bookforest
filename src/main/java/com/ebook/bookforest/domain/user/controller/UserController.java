@@ -4,12 +4,10 @@ import com.ebook.bookforest.domain.user.service.UserWithdrawalService;
 import com.ebook.bookforest.global.security.jwt.model.JwtPrincipal;
 import com.ebook.bookforest.global.security.oauth.RefreshTokenCookieManager;
 import jakarta.servlet.http.HttpServletResponse;
-import java.net.CookieManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
