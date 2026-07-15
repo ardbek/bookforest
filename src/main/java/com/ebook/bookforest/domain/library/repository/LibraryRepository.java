@@ -5,11 +5,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
 
 /**
  * 도서관 정보 조회 Repository
  */
 public interface LibraryRepository extends JpaRepository<Library, Long> {
+
+    Optional<Library> findByIdAndVisibleTrue(Long id);
 
     /**
      * 플랫폼별 도서관 조회

@@ -10,7 +10,13 @@ import lombok.*;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 @Entity
-@Table(name = "favorite_book")
+@Table(
+    name = "favorite_book",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_favorite_book_user_book",
+        columnNames = {"user_id", "book_id"}
+    )
+)
 public class FavoriteBook extends BaseTimeEntity {
 
     @Id
