@@ -12,4 +12,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return
      */
     Optional<User> findByIdAndActiveTrue(Long id);
+
+    /**
+     * 회원 활성 여부 조회
+     * @param userId
+     * @return
+     */
+    boolean existsByIdAndActiveTrue(Long userId);
 }

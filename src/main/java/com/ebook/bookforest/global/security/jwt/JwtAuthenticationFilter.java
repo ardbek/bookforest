@@ -1,5 +1,8 @@
 package com.ebook.bookforest.global.security.jwt;
 
+import com.ebook.bookforest.domain.auth.exception.AuthErrorCode;
+import com.ebook.bookforest.domain.auth.exception.AuthException;
+import com.ebook.bookforest.domain.user.repository.UserRepository;
 import com.ebook.bookforest.global.security.jwt.model.JwtPrincipal;
 import com.ebook.bookforest.global.security.jwt.model.ParsedAccessToken;
 import io.jsonwebtoken.MalformedJwtException;
@@ -26,6 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final TokenProvider tokenProvider;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -44,6 +48,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         ParsedAccessToken parsedToken = tokenProvider.parseAccessToken(accessToken);
+
+        // 활성 사용자인지 검증
+        validateActiveUser(parsedToken.userId());
 
         setAuthentication(request, parsedToken);
 
@@ -109,11 +116,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     }
 
+    /**
+     * 이미 인증 받았는지 검증
+     * @return
+     */
     private boolean isAlreadyAuthenticated() {
         var authentication = SecurityContextHolder
             .getContext()
             .getAuthentication();
 
         return authentication != null && authentication.isAuthenticated();
+    }
+
+    /**
+     * 활성 사용자 검증
+     * @param userId
+     */
+    private void validateActiveUser(Long userId) {
+        boolean active = userRepository.existsByIdAndActiveTrue(userId);
+
+        if (!active) {
+            throw new AuthException(AuthErrorCode.USER_NOT_ACTIVE);
+        }
     }
 }

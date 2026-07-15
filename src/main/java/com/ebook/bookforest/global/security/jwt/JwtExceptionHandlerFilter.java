@@ -1,5 +1,6 @@
 package com.ebook.bookforest.global.security.jwt;
 
+import com.ebook.bookforest.domain.auth.exception.AuthException;
 import com.ebook.bookforest.global.exception.ErrorResponseWriter;
 import com.ebook.bookforest.global.security.SecurityErrorCode;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -40,10 +41,15 @@ public class JwtExceptionHandlerFilter extends OncePerRequestFilter {
                 exception.getClass().getSimpleName()
             );
 
-            errorResponseWriter.write(
-                response,
-                SecurityErrorCode.INVALID_ACCESS_TOKEN
+            errorResponseWriter.write(response, SecurityErrorCode.INVALID_ACCESS_TOKEN);
+        } catch (AuthException exception) {
+            log.debug(
+                "비활성 사용자의 Access Token 요청: errorCode={}",
+                exception.getErrorCode().code()
             );
+
+            errorResponseWriter.write(response, exception.getErrorCode());
         }
+
     }
 }
