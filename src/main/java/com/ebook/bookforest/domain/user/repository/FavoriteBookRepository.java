@@ -18,4 +18,6 @@ public interface FavoriteBookRepository extends JpaRepository<FavoriteBook, Long
         @Param("userId") Long userId,
         @Param("bookIds") List<Long> bookIds
     );
+
+    long deleteAllByUser_Id(Long userId);
 }

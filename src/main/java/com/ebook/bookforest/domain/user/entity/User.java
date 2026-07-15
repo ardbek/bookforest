@@ -3,6 +3,7 @@ package com.ebook.bookforest.domain.user.entity;
 import com.ebook.bookforest.domain.user.enums.UserRole;
 import com.ebook.bookforest.global.entity.BaseTimeEntity;
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.*;
 
 @Getter
@@ -10,7 +11,7 @@ import lombok.*;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 @Entity
-@Table(name = "user")
+@Table(name = "users")
 public class User extends BaseTimeEntity {
 
     /* 사용자 ID */
@@ -41,4 +42,32 @@ public class User extends BaseTimeEntity {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean active = true;
+
+    /* 탈퇴일 */
+    @Column(name="withdraw_at")
+    private LocalDateTime withdrawAt;
+
+    /* 프로필 수정 */
+    public void updateProfile(
+        String displayName, String email, String profileImageUrl
+    ) {
+        this.displayName = displayName;
+        this.email = email;
+        this.profileImageUrl = profileImageUrl;
+    }
+
+    /* 회원 탈퇴 */
+    public void withdraw(LocalDateTime withdrawAt) {
+        if(!active) {
+            throw new IllegalStateException("이미 탈퇴한 사용자입니다.");
+        }
+
+        this.active = false;
+        this.withdrawAt = withdrawAt;
+
+        // TODO; 탈퇴 정책 정의 후 정리
+        this.displayName = null;
+        this.email = null;
+        this.profileImageUrl = null;
+    }
 }

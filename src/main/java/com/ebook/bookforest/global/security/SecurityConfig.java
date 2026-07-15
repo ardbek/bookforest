@@ -1,21 +1,38 @@
 package com.ebook.bookforest.global.security;
 
+import com.ebook.bookforest.global.security.jwt.JwtAccessDeniedHandler;
+import com.ebook.bookforest.global.security.jwt.JwtAuthenticationEntryPoint;
+import com.ebook.bookforest.global.security.jwt.JwtAuthenticationFilter;
+import com.ebook.bookforest.global.security.jwt.JwtExceptionHandlerFilter;
+import com.ebook.bookforest.global.security.oauth.CustomOAuth2UserService;
+import com.ebook.bookforest.global.security.oauth.OAuth2AuthenticationFailureHandler;
+import com.ebook.bookforest.global.security.oauth.OAuth2AuthenticationSuccessHandler;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-// TODO; 코드 정리
 @Configuration
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler successHandler;
+    private final OAuth2AuthenticationFailureHandler failureHandler;
+
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
+    private final JwtExceptionHandlerFilter jwtExceptionHandlerFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
@@ -27,10 +44,24 @@ public class SecurityConfig {
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/error").permitAll()
-                .requestMatchers("/admin/categories/standard").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // health check, error
+                .requestMatchers(
+                    "/actuator/health",
+                    "/error"
+                ).permitAll()
+                // 소셜 로그인
+                .requestMatchers(
+                    "/oauth2/**",
+                    "/login/oauth2/**",
+                    "/api/reissue",
+                    "/api/logout"
+                ).permitAll()
+
+                .requestMatchers(
+                    HttpMethod.OPTIONS,
+                    "/**"
+                ).permitAll()
+
                 .requestMatchers(
                     "/api/platform",
                     "/api/platform/**",
@@ -43,14 +74,35 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().authenticated()
             )
+
+            .oauth2Login(oauth2 -> oauth2
+                .userInfoEndpoint(userInfo -> userInfo
+                    .userService(customOAuth2UserService)
+                )
+                .successHandler(successHandler)
+                .failureHandler(failureHandler)
+            )
+
             // 인증 실패 시 로그인 페이지 redirect 대신 401 반환
             .exceptionHandling(exception -> exception
-                .authenticationEntryPoint((request, response, authException) -> {
-                    response.setStatus(HttpStatus.UNAUTHORIZED.value());
-                    response.setContentType("application/json;charset=UTF-8");
-                    response.getWriter().write("{\"message\":\"Unauthorized\"}");
-                })
+                .authenticationEntryPoint(
+                    jwtAuthenticationEntryPoint
+                )
+                .accessDeniedHandler(
+                    jwtAccessDeniedHandler
+                )
+            )
+
+            .addFilterBefore(
+                jwtAuthenticationFilter,
+                UsernamePasswordAuthenticationFilter.class
+            )
+
+            .addFilterBefore(
+                jwtExceptionHandlerFilter,
+                JwtAuthenticationFilter.class
             );
+
         return http.build();
     }
 

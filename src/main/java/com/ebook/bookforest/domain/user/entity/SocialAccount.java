@@ -10,7 +10,15 @@ import lombok.*;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 @Entity
-@Table(name = "social_account")
+@Table(
+    name = "social_account",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_social_provider_subject",
+            columnNames = {"social_provider", "provider_subject"}
+        )
+    }
+)
 public class SocialAccount extends BaseTimeEntity {
 
     /* 소셜 ID */
@@ -40,4 +48,14 @@ public class SocialAccount extends BaseTimeEntity {
 
     @Column(name = "profile_image_url", length = 1000)
     private String profileImageUrl;
+
+    public void updateProfile(
+        String email,
+        String nickname,
+        String profileImageUrl
+    ) {
+        this.email = email;
+        this.nickname = nickname;
+        this.profileImageUrl = profileImageUrl;
+    }
 }
