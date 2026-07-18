@@ -2,9 +2,13 @@ package com.ebook.bookforest.domain.user.service;
 
 import com.ebook.bookforest.domain.user.entity.SocialAccount;
 import com.ebook.bookforest.domain.user.entity.User;
+import com.ebook.bookforest.domain.user.enums.SocialUnlinkStatus;
+import com.ebook.bookforest.domain.user.exception.SocialUnlinkInProgressException;
 import com.ebook.bookforest.domain.user.repository.SocialAccountRepository;
+import com.ebook.bookforest.domain.user.repository.SocialUnlinkTaskRepository;
 import com.ebook.bookforest.domain.user.repository.UserRepository;
 import com.ebook.bookforest.global.security.oauth.OAuth2Response;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,18 +19,39 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class OAuthService {
 
+    private static final Set<SocialUnlinkStatus> BLOCKING_STATUSES = Set.of(
+        SocialUnlinkStatus.PENDING,
+        SocialUnlinkStatus.PROCESSING,
+        SocialUnlinkStatus.RETRY_WAITING
+    );
+
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
+    private final SocialUnlinkTaskRepository unlinkTaskRepository;
 
     @Transactional
     public User loginOrSignUp(OAuth2Response response) {
         validateResponse(response);
+        validateNotUnlinking(response);
 
         return socialAccountRepository.findBySocialProviderAndProviderSubject(
                 response.getProvider(),
                 response.getProviderSubject()
             ).map(account -> updateExistingUser(account, response))
             .orElseGet(() -> createNewUser(response));
+    }
+
+    private void validateNotUnlinking(OAuth2Response response) {
+        boolean unlinking = unlinkTaskRepository
+            .existsBySocialProviderAndProviderSubjectAndStatusIn(
+                response.getProvider(),
+                response.getProviderSubject(),
+                BLOCKING_STATUSES
+            );
+
+        if (unlinking) {
+            throw new SocialUnlinkInProgressException();
+        }
     }
 
     /**

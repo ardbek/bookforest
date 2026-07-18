@@ -21,6 +21,8 @@ public class CustomOAuth2User implements OAuth2User {
     private final UserRole role;
     /* 로그인 플랫폼 */
     private final SocialProvider provider;
+    /* 소셜 플랫폼 사용자 식별값 */
+    private final String providerSubject;
     /* 로그인 플랫폼에서 제공한 사용자 정보 */
     private final Map<String, Object> attributes;
     /**/
@@ -30,11 +32,13 @@ public class CustomOAuth2User implements OAuth2User {
         Long userId
         , UserRole role
         , SocialProvider provider
+        , String providerSubject
         , Map<String, Object> attributes
     ) {
         this.userId = Objects.requireNonNull(userId, "userId is null");
         this.role = Objects.requireNonNull(role, "role is null");
         this.provider = Objects.requireNonNull(provider, "provider is null");
+        this.providerSubject =Objects.requireNonNull(providerSubject,"providerSubject is null");
         this.attributes = Collections.unmodifiableMap(new LinkedHashMap<>(attributes)); // 수정 방지 unmodifiableMap으로 생성
         this.authorities = List.of(new SimpleGrantedAuthority(role.name()));
     }
@@ -50,6 +54,8 @@ public class CustomOAuth2User implements OAuth2User {
     public SocialProvider getProvider() {
         return provider;
     }
+
+    public String getProviderSubject() {return providerSubject;}
 
     @Override
     public Map<String, Object> getAttributes() {

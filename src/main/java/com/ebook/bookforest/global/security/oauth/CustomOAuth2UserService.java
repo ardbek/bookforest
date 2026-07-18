@@ -1,6 +1,7 @@
 package com.ebook.bookforest.global.security.oauth;
 
 import com.ebook.bookforest.domain.user.entity.User;
+import com.ebook.bookforest.domain.user.exception.SocialUnlinkInProgressException;
 import com.ebook.bookforest.domain.user.service.OAuthService;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user.getId(),
             user.getRole(),
             response.getProvider(),
+            response.getProviderSubject(),
             oAuth2User.getAttributes()
         );
     }
@@ -41,10 +43,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             // 키 값은 yml 에 등록(registrationId)
             case "kakao" -> new KakaoResponse(attributes);
             case "naver" -> new NaverResponse(attributes);
-            default -> throw createAuthenticationException(
-                "unsupported_provider",
-                "지원하지 않는 소셜 로그인 제공자입니다."
-            );
+            default -> throw createAuthenticationException("unsupported_provider","지원하지 않는 소셜 로그인 제공자입니다.");
         };
     }
 
@@ -52,6 +51,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         try {
             return oAuthService.loginOrSignUp(response);
 
+        } catch (SocialUnlinkInProgressException exception) {
+            throw createAuthenticationException(
+                "social_unlink_in_progress",
+                "소셜 계정 연동 해제가 진행 중입니다.",
+                exception
+            );
         } catch (IllegalStateException exception) {
             throw createAuthenticationException(
                 "inactive_user",

@@ -13,6 +13,12 @@ app:
       refresh-token-cookie-name: refresh_token
       cookie-secure: ${COOKIE_SECURE:false}
       cookie-same-site: Lax
+    social-token:
+      encryption-key: ${SOCIAL_TOKEN_ENCRYPTION_KEY}
+    social-unlink:
+      kakao-admin-key: ${KAKAO_ADMIN_KEY}
+      naver-client-id: ${NAVER_CLIENT_ID}
+      naver-client-secret: ${NAVER_CLIENT_SECRET}
 spring:
   application:
     name: bookforest
@@ -20,6 +26,10 @@ spring:
     import: file:.env[.properties]
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  http:
+    clients:
+      connect-timeout: ${HTTP_CLIENT_CONNECT_TIMEOUT:3s}
+      read-timeout: ${HTTP_CLIENT_READ_TIMEOUT:5s}
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:mysql}:${MYSQL_PORT:3306}/${MYSQL_DATABASE}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: ${MYSQL_USER}

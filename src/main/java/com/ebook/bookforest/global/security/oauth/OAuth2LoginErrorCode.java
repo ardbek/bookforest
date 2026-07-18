@@ -20,6 +20,12 @@ public enum OAuth2LoginErrorCode implements ErrorCode {
         "비활성화된 사용자입니다."
     ),
 
+    SOCIAL_UNLINK_IN_PROGRESS(
+        HttpStatus.CONFLICT,
+        "social_unlink_in_progress",
+        "소셜 계정 연동 해제가 진행 중입니다."
+    ),
+
     UNSUPPORTED_PROVIDER(
         HttpStatus.BAD_REQUEST,
         "unsupported_provider",
