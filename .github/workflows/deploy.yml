@@ -48,6 +48,9 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Test
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: 13306
         run: ./gradlew test
 
       - name: Build JAR
