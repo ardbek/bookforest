@@ -17,6 +17,7 @@ concurrency:
 env:
   IMAGE_NAME: ghcr.io/ardbek/bookforest
   APP_DIR: /Users/hedgehog/homelab/apps/bookforest-api
+  APP_CONFIG_DIR: /Users/hedgehog/homelab/apps/bookforest-api
   DOCKER_CONFIG: /Users/hedgehog/homelab/apps/bookforest-api/.docker-ci
 
 jobs:

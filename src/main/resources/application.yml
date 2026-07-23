@@ -23,7 +23,7 @@ spring:
   application:
     name: bookforest
   config:
-    import: file:.env[.properties]
+    import: optional:file:${APP_CONFIG_DIR:.}/.env[.properties]
   lifecycle:
     timeout-per-shutdown-phase: 30s
   http:
