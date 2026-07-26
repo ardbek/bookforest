@@ -102,9 +102,9 @@ jobs:
       - name: Deploy app container
         run: |
           cd "${APP_DIR}"
-          /usr/local/bin/docker-compose up -d mysql
+          /usr/local/bin/docker-compose up -d mysql redis
           /usr/local/bin/docker-compose pull app
-          /usr/local/bin/docker-compose up -d --no-deps app
+          /usr/local/bin/docker-compose up -d app
 
       - name: Show app logs
         if: failure()
