@@ -43,7 +43,7 @@ spring:
       timeout: 2s
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
   security:
     oauth2:
