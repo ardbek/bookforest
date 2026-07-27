@@ -53,23 +53,33 @@ public class BookOrigin extends BaseTimeEntity {
     @Lob
     @Column(
         name = "title_raw",
-        nullable = false
+        nullable = false,
+        columnDefinition = "TEXT"
     )
     private String titleRaw;
 
     /* 원본 저자 */
     @Lob
-    @Column(name = "author_raw")
+    @Column(
+        name = "author_raw",
+        columnDefinition = "TEXT"
+    )
     private String authorRaw;
 
     /* 원본 출판사 */
     @Lob
-    @Column(name = "publisher_raw")
+    @Column(
+        name = "publisher_raw",
+        columnDefinition = "TEXT"
+    )
     private String publisherRaw;
 
     /* 원본 카테고리 */
     @Lob
-    @Column(name = "category_raw")
+    @Column(
+        name = "category_raw",
+        columnDefinition = "TEXT"
+    )
     private String categoryRaw;
 
     /* 원본 출판일 */
@@ -135,7 +145,10 @@ public class BookOrigin extends BaseTimeEntity {
 
     /* 원본 설명 */
     @Lob
-    @Column(name = "description_raw")
+    @Column(
+        name = "description_raw",
+        columnDefinition = "TEXT"
+    )
     private String descriptionRaw;
 
     /* 최초 수집일 */
