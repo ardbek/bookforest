@@ -28,7 +28,6 @@ public class BookController {
      * @param libraryIds
      * @param libraryPlatformIds
      * @param subscriptionPlatformIds
-     * @param userId
      * @param pageable
      * @return
      */
@@ -40,7 +39,6 @@ public class BookController {
         @RequestParam(required = false) List<Long> libraryIds,
         @RequestParam(required = false) List<Long> libraryPlatformIds,
         @RequestParam(required = false) List<Long> subscriptionPlatformIds,
-        @RequestParam(required = false) Long userId,
         @PageableDefault(size = 20) Pageable pageable
     ) {
         return bookSearchService.searchBooks(
@@ -50,16 +48,12 @@ public class BookController {
             libraryIds,
             libraryPlatformIds,
             subscriptionPlatformIds,
-            userId,
             pageable
         );
     }
 
     @GetMapping("/{bookId}")
-    public BookSearchResponse getBook(
-        @PathVariable Long bookId,
-        @RequestParam(required = false) Long userId
-    ) {
-        return bookSearchService.getBook(bookId, userId);
+    public BookSearchResponse getBook(@PathVariable Long bookId) {
+        return bookSearchService.getBook(bookId);
     }
 }

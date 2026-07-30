@@ -46,7 +46,7 @@ public class FavoriteController {
     }
 
     /**
-     * 즐겨차직 도서 추가
+     * 즐겨찾기 도서 추가
      * @param principal
      * @param bookId
      * @return

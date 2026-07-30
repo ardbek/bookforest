@@ -36,10 +36,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class BookSearchService {
 
     private final BookRepository bookRepository;
-    private final FavoriteBookRepository favoriteBookRepository;
 
     @Transactional(readOnly = true)
-    public BookSearchResponse getBook(Long bookId, Long userId) {
+    public BookSearchResponse getBook(Long bookId) {
         // 도서 상세 조회
         Book book = bookRepository.findById(bookId).orElseThrow(() -> new BookException(BookErrorCode.BOOK_NOT_FOUND));
 
@@ -58,7 +57,6 @@ public class BookSearchService {
             resolveSubscriptionPlatformLinks(bookRepository.findSubscriptionPlatformLinks(bookIds));
         List<BookLibraryPlatformHoldingResponse> libraryPlatformHoldings =
             resolveLibraryPlatformHoldings(bookRepository.findLibraryHoldings(bookIds));
-        boolean favoriteYn = findFavoriteBookIds(userId, bookIds).contains(book.getId());
 
         return BookSearchResponse.from(
             book,
@@ -67,7 +65,7 @@ public class BookSearchService {
             subscriptionPlatforms,
             subscriptionPlatformLinks,
             libraryPlatformHoldings,
-            favoriteYn
+            false
         );
     }
 
@@ -79,7 +77,6 @@ public class BookSearchService {
         List<Long> libraryIds,
         List<Long> libraryPlatformIds,
         List<Long> subscriptionPlatformIds,
-        Long userId,
         Pageable pageable
     ) {
         BookSearchCondition condition = new BookSearchCondition(
@@ -107,7 +104,6 @@ public class BookSearchService {
 
         Map<Long, List<BookPlatformSummaryResponse>> libraryPlatformsByBookId = groupPlatformSummaries(bookRepository.findLibraryPlatformSummaries(bookIds));
         Map<Long, List<BookPlatformSummaryResponse>> subscriptionPlatformsByBookId = groupPlatformSummaries(bookRepository.findSubscriptionPlatformSummaries(bookIds));
-        Set<Long> favoriteBookIds = findFavoriteBookIds(userId, bookIds);
 
         List<BookSearchResponse> content = books.getContent().stream()
             .map(book -> BookSearchResponse.from(
@@ -115,7 +111,7 @@ public class BookSearchService {
                 categoriesByBookId.get(book.getId()),
                 libraryPlatformsByBookId.getOrDefault(book.getId(), List.of()),
                 subscriptionPlatformsByBookId.getOrDefault(book.getId(), List.of()),
-                favoriteBookIds.contains(book.getId())
+                false
             ))
             .toList();
 
@@ -228,19 +224,6 @@ public class BookSearchService {
             this.platformCode = platformCode;
             this.platformName = platformName;
         }
-    }
-
-    /**
-     * 즐겨찾기 도서 조회
-     * @param userId
-     * @param bookIds
-     * @return
-     */
-    private Set<Long> findFavoriteBookIds(Long userId, List<Long> bookIds) {
-        if (userId == null || bookIds.isEmpty()) {
-            return Set.of();
-        }
-        return Set.copyOf(favoriteBookRepository.findBookIdsByUserIdAndBookIdIn(userId, bookIds));
     }
 
     /**
