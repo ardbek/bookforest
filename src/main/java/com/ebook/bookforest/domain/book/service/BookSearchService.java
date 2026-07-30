@@ -8,6 +8,8 @@ import com.ebook.bookforest.domain.book.dto.BookSearchResponse;
 import com.ebook.bookforest.domain.book.dto.BookSubscriptionPlatformResponse;
 import com.ebook.bookforest.domain.book.entity.Book;
 import com.ebook.bookforest.domain.book.enums.BookSearchType;
+import com.ebook.bookforest.domain.book.exception.BookErrorCode;
+import com.ebook.bookforest.domain.book.exception.BookException;
 import com.ebook.bookforest.domain.book.repository.BookCategorySummary;
 import com.ebook.bookforest.domain.book.repository.BookLibraryHolding;
 import com.ebook.bookforest.domain.book.repository.BookPlatformSummary;
@@ -26,10 +28,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -40,11 +40,8 @@ public class BookSearchService {
 
     @Transactional(readOnly = true)
     public BookSearchResponse getBook(Long bookId, Long userId) {
-        Book book = bookRepository.findById(bookId)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "도서를 찾을 수 없습니다: " + bookId
-            ));
+        // 도서 상세 조회
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new BookException(BookErrorCode.BOOK_NOT_FOUND));
 
         List<Long> bookIds = List.of(book.getId());
         BookCategorySummary category = bookRepository.findPrimaryCategorySummaries(bookIds)
