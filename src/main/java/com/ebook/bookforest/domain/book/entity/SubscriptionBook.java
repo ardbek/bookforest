@@ -13,7 +13,12 @@ import java.time.LocalDateTime;
 @Builder
 @Entity
 @Table(
-    name = "subscription_book")
+    name = "subscription_book",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_subscription_book_origin",
+        columnNames = "book_origin_id"
+    )
+)
 public class SubscriptionBook extends BaseTimeEntity {
 
     /* 구독 플랫폼 보유 도서 ID */
@@ -22,22 +27,13 @@ public class SubscriptionBook extends BaseTimeEntity {
     @Column(name = "subscription_book_id")
     private Long id;
 
-    /* 원본 도서 */
-    @ManyToOne(fetch = FetchType.LAZY)
+    /* 플랫폼 도서 */
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(
         name = "book_origin_id",
         nullable = false
     )
     private BookOrigin bookOrigin;
-
-    /*
-     * 대표 도서
-     *
-     * 구독 플랫폼 필터 검색 성능을 위해 중복 저장.
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "book_id")
-    private Book book;
 
     /* 제공 상태 */
     @Enumerated(EnumType.STRING)
@@ -98,7 +94,4 @@ public class SubscriptionBook extends BaseTimeEntity {
         this.removedAt = removedAt;
     }
 
-    public void updateMatchedBook(Book book) {
-        this.book = book;
-    }
 }

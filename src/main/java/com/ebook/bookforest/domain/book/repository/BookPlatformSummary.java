@@ -1,7 +1,7 @@
 package com.ebook.bookforest.domain.book.repository;
 
 public record BookPlatformSummary(
-    Long bookId,
+    Long bookOriginId,
     Long platformId,
     String platformCode,
     String platformName,

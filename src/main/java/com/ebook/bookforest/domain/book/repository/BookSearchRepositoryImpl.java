@@ -1,6 +1,6 @@
 package com.ebook.bookforest.domain.book.repository;
 
-import com.ebook.bookforest.domain.book.entity.Book;
+import com.ebook.bookforest.domain.book.entity.BookOrigin;
 import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
 import com.ebook.bookforest.domain.book.enums.BookSearchType;
 import jakarta.persistence.EntityManager;
@@ -25,24 +25,24 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
     }
 
     @Override
-    public Page<Book> searchBooks(BookSearchCondition condition, Pageable pageable) {
+    public Page<BookOrigin> searchBooks(BookSearchCondition condition, Pageable pageable) {
         QueryParts queryParts = buildWhereClause(condition);
 
         String contentJpql = """
-            select distinct b
-            from Book b
+            select distinct bo
+            from BookOrigin bo
             %s
-            order by b.title asc, b.id asc
+            order by bo.titleRaw asc, bo.id asc
             """.formatted(queryParts.whereClause());
 
-        TypedQuery<Book> contentQuery = entityManager.createQuery(contentJpql, Book.class);
+        TypedQuery<BookOrigin> contentQuery = entityManager.createQuery(contentJpql, BookOrigin.class);
         bindParameters(contentQuery, queryParts.parameters());
         contentQuery.setFirstResult((int) pageable.getOffset());
         contentQuery.setMaxResults(pageable.getPageSize());
 
         String countJpql = """
-            select count(distinct b.id)
-            from Book b
+            select count(distinct bo.id)
+            from BookOrigin bo
             %s
             """.formatted(queryParts.whereClause());
         TypedQuery<Long> countQuery = entityManager.createQuery(countJpql, Long.class);
@@ -56,15 +56,15 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
     }
 
     @Override
-    public List<BookPlatformSummary> findLibraryPlatformSummaries(List<Long> bookIds) {
-        if (bookIds == null || bookIds.isEmpty()) {
+    public List<BookPlatformSummary> findLibraryPlatformSummaries(List<Long> bookOriginIds) {
+        if (bookOriginIds == null || bookOriginIds.isEmpty()) {
             return List.of();
         }
 
         return entityManager.createQuery(
                 """
                     select new com.ebook.bookforest.domain.book.repository.BookPlatformSummary(
-                        lb.book.id,
+                        lb.bookOrigin.id,
                         p.id,
                         p.platformCode,
                         p.platformName,
@@ -73,30 +73,31 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
                     from LibraryBook lb
                     join lb.library l
                     join l.platform p
-                    where lb.book.id in :bookIds
+                    where lb.bookOrigin.id in :bookOriginIds
+                      and lb.bookOrigin.active = true
                       and lb.availabilityStatus = :available
                       and l.visible = true
                       and p.supportsLibrary = true
-                    group by lb.book.id, p.id, p.platformCode, p.platformName
+                    group by lb.bookOrigin.id, p.id, p.platformCode, p.platformName
                     order by p.platformName asc, p.id asc
                     """,
                 BookPlatformSummary.class
             )
-            .setParameter("bookIds", bookIds)
+            .setParameter("bookOriginIds", bookOriginIds)
             .setParameter("available", AvailabilityStatus.AVAILABLE)
             .getResultList();
     }
 
     @Override
-    public List<BookPlatformSummary> findSubscriptionPlatformSummaries(List<Long> bookIds) {
-        if (bookIds == null || bookIds.isEmpty()) {
+    public List<BookPlatformSummary> findSubscriptionPlatformSummaries(List<Long> bookOriginIds) {
+        if (bookOriginIds == null || bookOriginIds.isEmpty()) {
             return List.of();
         }
 
         return entityManager.createQuery(
                 """
                     select new com.ebook.bookforest.domain.book.repository.BookPlatformSummary(
-                        sb.book.id,
+                        bo.id,
                         p.id,
                         p.platformCode,
                         p.platformName,
@@ -105,30 +106,30 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
                     from SubscriptionBook sb
                     join sb.bookOrigin bo
                     join bo.platform p
-                    where sb.book.id in :bookIds
+                    where bo.id in :bookOriginIds
                       and sb.availabilityStatus = :available
                       and bo.active = true
                       and p.supportsSubscription = true
-                    group by sb.book.id, p.id, p.platformCode, p.platformName
+                    group by bo.id, p.id, p.platformCode, p.platformName
                     order by p.platformName asc, p.id asc
                     """,
                 BookPlatformSummary.class
             )
-            .setParameter("bookIds", bookIds)
+            .setParameter("bookOriginIds", bookOriginIds)
             .setParameter("available", AvailabilityStatus.AVAILABLE)
             .getResultList();
     }
 
     @Override
-    public List<BookSubscriptionPlatformLink> findSubscriptionPlatformLinks(List<Long> bookIds) {
-        if (bookIds == null || bookIds.isEmpty()) {
+    public List<BookSubscriptionPlatformLink> findSubscriptionPlatformLinks(List<Long> bookOriginIds) {
+        if (bookOriginIds == null || bookOriginIds.isEmpty()) {
             return List.of();
         }
 
         return entityManager.createQuery(
                 """
                     select new com.ebook.bookforest.domain.book.repository.BookSubscriptionPlatformLink(
-                        sb.book.id,
+                        bo.id,
                         p.id,
                         p.platformCode,
                         p.platformName,
@@ -137,7 +138,7 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
                     from SubscriptionBook sb
                     join sb.bookOrigin bo
                     join bo.platform p
-                    where sb.book.id in :bookIds
+                    where bo.id in :bookOriginIds
                       and sb.availabilityStatus = :available
                       and bo.active = true
                       and p.supportsSubscription = true
@@ -145,21 +146,21 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
                     """,
                 BookSubscriptionPlatformLink.class
             )
-            .setParameter("bookIds", bookIds)
+            .setParameter("bookOriginIds", bookOriginIds)
             .setParameter("available", AvailabilityStatus.AVAILABLE)
             .getResultList();
     }
 
     @Override
-    public List<BookLibraryHolding> findLibraryHoldings(List<Long> bookIds) {
-        if (bookIds == null || bookIds.isEmpty()) {
+    public List<BookLibraryHolding> findLibraryHoldings(List<Long> bookOriginIds) {
+        if (bookOriginIds == null || bookOriginIds.isEmpty()) {
             return List.of();
         }
 
         return entityManager.createQuery(
                 """
                     select new com.ebook.bookforest.domain.book.repository.BookLibraryHolding(
-                        lb.book.id,
+                        bo.id,
                         p.id,
                         p.platformCode,
                         p.platformName,
@@ -175,7 +176,8 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
                     join lb.bookOrigin bo
                     join lb.library l
                     join l.platform p
-                    where lb.book.id in :bookIds
+                    where bo.id in :bookOriginIds
+                      and bo.active = true
                       and lb.availabilityStatus = :available
                       and l.visible = true
                       and p.supportsLibrary = true
@@ -183,41 +185,43 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
                     """,
                 BookLibraryHolding.class
             )
-            .setParameter("bookIds", bookIds)
+            .setParameter("bookOriginIds", bookOriginIds)
             .setParameter("available", AvailabilityStatus.AVAILABLE)
             .getResultList();
     }
 
     @Override
-    public List<BookCategorySummary> findPrimaryCategorySummaries(List<Long> bookIds) {
-        if (bookIds == null || bookIds.isEmpty()) {
+    public List<BookCategorySummary> findCategorySummaries(List<Long> bookOriginIds) {
+        if (bookOriginIds == null || bookOriginIds.isEmpty()) {
             return List.of();
         }
 
         return entityManager.createQuery(
                 """
                     select new com.ebook.bookforest.domain.book.repository.BookCategorySummary(
-                        bc.book.id,
+                        boc.bookOrigin.id,
                         sc.id,
                         sc.categoryName,
                         sc.categoryPath
                     )
-                    from BookCategory bc
-                    join bc.standardCategory sc
-                    where bc.book.id in :bookIds
-                      and bc.primary = true
+                    from BookOriginCategory boc
+                    join boc.platformCategory pc
+                    join pc.standardCategory sc
+                    where boc.bookOrigin.id in :bookOriginIds
+                      and pc.active = true
                       and sc.active = true
                     order by sc.sortOrder asc, sc.id asc
                     """,
                 BookCategorySummary.class
             )
-            .setParameter("bookIds", bookIds)
+            .setParameter("bookOriginIds", bookOriginIds)
             .getResultList();
     }
 
     private QueryParts buildWhereClause(BookSearchCondition condition) {
         List<String> clauses = new ArrayList<>();
         Map<String, Object> parameters = new HashMap<>();
+        clauses.add("bo.active = true");
 
         String keyword = normalizeKeyword(condition.keyword());
         if (keyword != null) {
@@ -228,9 +232,11 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
             clauses.add("""
                 exists (
                     select 1
-                    from BookCategory bc
-                    join bc.standardCategory sc
-                    where bc.book = b
+                    from BookOriginCategory boc
+                    join boc.platformCategory pc
+                    join pc.standardCategory sc
+                    where boc.bookOrigin = bo
+                      and pc.active = true
                       and sc.active = true
                       and sc.id in :categoryIds
                 )
@@ -247,11 +253,11 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
                 exists (
                     select 1
                     from SubscriptionBook sb
-                    join sb.bookOrigin bo
-                    join bo.platform sp
-                    where sb.book = b
+                    join sb.bookOrigin sbo
+                    join sbo.platform sp
+                    where sbo = bo
                       and sb.availabilityStatus = :availableStatus
-                      and bo.active = true
+                      and sbo.active = true
                       and sp.supportsSubscription = true
                       and sp.id in :subscriptionPlatformIds
                 )
@@ -264,9 +270,6 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
             clauses.add("(" + String.join(" or ", sourceClauses) + ")");
         }
 
-        if (clauses.isEmpty()) {
-            return new QueryParts("", parameters);
-        }
         return new QueryParts("where " + String.join(" and ", clauses), parameters);
     }
 
@@ -280,14 +283,14 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
         BookSearchType resolvedSearchType = searchType == null ? BookSearchType.ALL : searchType;
 
         switch (resolvedSearchType) {
-            case TITLE -> clauses.add("lower(b.titleNorm) like :keyword");
-            case AUTHOR -> clauses.add("lower(b.authorNorm) like :keyword");
-            case PUBLISHER -> clauses.add("lower(b.publisherNorm) like :keyword");
+            case TITLE -> clauses.add("lower(bo.titleNorm) like :keyword");
+            case AUTHOR -> clauses.add("lower(bo.authorNorm) like :keyword");
+            case PUBLISHER -> clauses.add("lower(bo.publisherNorm) like :keyword");
             case ALL -> clauses.add("""
                 (
-                    lower(b.titleNorm) like :keyword
-                    or lower(b.authorNorm) like :keyword
-                    or lower(b.publisherNorm) like :keyword
+                    lower(bo.titleNorm) like :keyword
+                    or lower(bo.authorNorm) like :keyword
+                    or lower(bo.publisherNorm) like :keyword
                 )
                 """);
         }
@@ -299,7 +302,7 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
         Map<String, Object> parameters
     ) {
         List<String> filters = new ArrayList<>();
-        filters.add("lb.book = b");
+        filters.add("lb.bookOrigin = bo");
         filters.add("lb.availabilityStatus = :availableStatus");
         filters.add("l.visible = true");
         filters.add("lp.supportsLibrary = true");

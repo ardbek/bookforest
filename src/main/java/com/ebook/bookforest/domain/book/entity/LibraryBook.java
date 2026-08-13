@@ -13,7 +13,13 @@ import java.time.LocalDateTime;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 @Entity
-@Table(name = "library_book")
+@Table(
+    name = "library_book",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_library_book_origin",
+        columnNames = {"library_id", "book_origin_id"}
+    )
+)
 public class LibraryBook extends BaseTimeEntity {
 
     /* 도서관 보유 도서 ID */
@@ -30,22 +36,13 @@ public class LibraryBook extends BaseTimeEntity {
     )
     private Library library;
 
-    /* 원본 도서 */
+    /* 플랫폼 도서 */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
         name = "book_origin_id",
         nullable = false
     )
     private BookOrigin bookOrigin;
-
-    /*
-     * 대표 도서
-     *
-     * 도서 검색 필터 성능을 위해 중복 저장.
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "book_id")
-    private Book book;
 
     /* 보유 상태 */
     @Enumerated(EnumType.STRING)
@@ -106,7 +103,4 @@ public class LibraryBook extends BaseTimeEntity {
         this.removedAt = removedAt;
     }
 
-    public void updateMatchedBook(Book book) {
-        this.book = book;
-    }
 }

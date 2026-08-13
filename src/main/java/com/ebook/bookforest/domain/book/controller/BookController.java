@@ -52,8 +52,8 @@ public class BookController {
         );
     }
 
-    @GetMapping("/{bookId}")
-    public BookSearchResponse getBook(@PathVariable Long bookId) {
-        return bookSearchService.getBook(bookId);
+    @GetMapping("/{bookOriginId}")
+    public BookSearchResponse getBook(@PathVariable Long bookOriginId) {
+        return bookSearchService.getBook(bookOriginId);
     }
 }

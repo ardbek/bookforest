@@ -6,7 +6,7 @@ import com.ebook.bookforest.domain.book.dto.BookLibraryPlatformHoldingResponse;
 import com.ebook.bookforest.domain.book.dto.BookSearchPageResponse;
 import com.ebook.bookforest.domain.book.dto.BookSearchResponse;
 import com.ebook.bookforest.domain.book.dto.BookSubscriptionPlatformResponse;
-import com.ebook.bookforest.domain.book.entity.Book;
+import com.ebook.bookforest.domain.book.entity.BookOrigin;
 import com.ebook.bookforest.domain.book.enums.BookSearchType;
 import com.ebook.bookforest.domain.book.exception.BookErrorCode;
 import com.ebook.bookforest.domain.book.exception.BookException;
@@ -15,18 +15,12 @@ import com.ebook.bookforest.domain.book.repository.BookLibraryHolding;
 import com.ebook.bookforest.domain.book.repository.BookPlatformSummary;
 import com.ebook.bookforest.domain.book.repository.BookRepository;
 import com.ebook.bookforest.domain.book.repository.BookSearchCondition;
-import com.ebook.bookforest.domain.book.repository.BookSubscriptionPlatformLink;
-import com.ebook.bookforest.domain.user.repository.FavoriteBookRepository;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,28 +32,40 @@ public class BookSearchService {
     private final BookRepository bookRepository;
 
     @Transactional(readOnly = true)
-    public BookSearchResponse getBook(Long bookId) {
+    public BookSearchResponse getBook(Long bookOriginId) {
         // 도서 상세 조회
-        Book book = bookRepository.findById(bookId).orElseThrow(() -> new BookException(BookErrorCode.BOOK_NOT_FOUND));
+        BookOrigin bookOrigin = bookRepository.findById(bookOriginId)
+            .filter(BookOrigin::isActive)
+            .orElseThrow(() -> new BookException(BookErrorCode.BOOK_NOT_FOUND));
 
-        List<Long> bookIds = List.of(book.getId());
-        BookCategorySummary category = bookRepository.findPrimaryCategorySummaries(bookIds)
+        List<Long> bookOriginIds = List.of(bookOrigin.getId());
+        BookCategorySummary category = bookRepository.findCategorySummaries(bookOriginIds)
             .stream()
             .findFirst()
             .orElse(null);
         List<BookPlatformSummaryResponse> libraryPlatforms =
-            groupPlatformSummaries(bookRepository.findLibraryPlatformSummaries(bookIds))
-                .getOrDefault(book.getId(), List.of());
+            groupPlatformSummaries(bookRepository.findLibraryPlatformSummaries(bookOriginIds))
+                .getOrDefault(bookOrigin.getId(), List.of());
         List<BookPlatformSummaryResponse> subscriptionPlatforms =
-            groupPlatformSummaries(bookRepository.findSubscriptionPlatformSummaries(bookIds))
-                .getOrDefault(book.getId(), List.of());
-        List<BookSubscriptionPlatformResponse> subscriptionPlatformLinks =
-            resolveSubscriptionPlatformLinks(bookRepository.findSubscriptionPlatformLinks(bookIds));
-        List<BookLibraryPlatformHoldingResponse> libraryPlatformHoldings =
-            resolveLibraryPlatformHoldings(bookRepository.findLibraryHoldings(bookIds));
+            groupPlatformSummaries(bookRepository.findSubscriptionPlatformSummaries(bookOriginIds))
+                .getOrDefault(bookOrigin.getId(), List.of());
+        List<BookSubscriptionPlatformResponse> subscriptionPlatformLinks = bookRepository
+            .findSubscriptionPlatformLinks(bookOriginIds)
+            .stream()
+            .map(BookSubscriptionPlatformResponse::from)
+            .toList();
+        List<BookLibraryHolding> holdings = bookRepository.findLibraryHoldings(bookOriginIds);
+        List<BookLibraryPlatformHoldingResponse> libraryPlatformHoldings = holdings.isEmpty()
+            ? List.of()
+            : List.of(BookLibraryPlatformHoldingResponse.of(
+                holdings.get(0).platformId(),
+                holdings.get(0).platformCode(),
+                holdings.get(0).platformName(),
+                holdings.stream().map(BookLibraryHoldingResponse::from).toList()
+            ));
 
         return BookSearchResponse.from(
-            book,
+            bookOrigin,
             category,
             libraryPlatforms,
             subscriptionPlatforms,
@@ -88,37 +94,31 @@ public class BookSearchService {
             sanitizeIds(subscriptionPlatformIds)
         );
 
-        Page<Book> books = bookRepository.searchBooks(condition, pageable);
-        List<Long> bookIds = books.getContent().stream()
-            .map(Book::getId)
+        Page<BookOrigin> bookOrigins = bookRepository.searchBooks(condition, pageable);
+        List<Long> bookOriginIds = bookOrigins.getContent().stream()
+            .map(BookOrigin::getId)
             .toList();
 
-        Map<Long, BookCategorySummary> categoriesByBookId = bookRepository
-            .findPrimaryCategorySummaries(bookIds)
+        Map<Long, BookCategorySummary> categoriesByBookOriginId = bookRepository
+            .findCategorySummaries(bookOriginIds)
             .stream()
             .collect(Collectors.toMap(
-                BookCategorySummary::bookId,
+                BookCategorySummary::bookOriginId,
                 Function.identity(),
                 (first, ignored) -> first
             ));
 
-        Map<Long, List<BookPlatformSummaryResponse>> libraryPlatformsByBookId = groupPlatformSummaries(bookRepository.findLibraryPlatformSummaries(bookIds));
-        Map<Long, List<BookPlatformSummaryResponse>> subscriptionPlatformsByBookId = groupPlatformSummaries(bookRepository.findSubscriptionPlatformSummaries(bookIds));
+        Map<Long, List<BookPlatformSummaryResponse>> libraryPlatformsByBookOriginId = groupPlatformSummaries(bookRepository.findLibraryPlatformSummaries(bookOriginIds));
+        Map<Long, List<BookPlatformSummaryResponse>> subscriptionPlatformsByBookOriginId = groupPlatformSummaries(bookRepository.findSubscriptionPlatformSummaries(bookOriginIds));
 
-        List<BookSearchResponse> content = books.getContent().stream()
-            .map(book -> BookSearchResponse.from(
-                book,
-                categoriesByBookId.get(book.getId()),
-                libraryPlatformsByBookId.getOrDefault(book.getId(), List.of()),
-                subscriptionPlatformsByBookId.getOrDefault(book.getId(), List.of()),
+        return BookSearchPageResponse.from(bookOrigins.map(bookOrigin ->
+            BookSearchResponse.from(
+                bookOrigin,
+                categoriesByBookOriginId.get(bookOrigin.getId()),
+                libraryPlatformsByBookOriginId.getOrDefault(bookOrigin.getId(), List.of()),
+                subscriptionPlatformsByBookOriginId.getOrDefault(bookOrigin.getId(), List.of()),
                 false
-            ))
-            .toList();
-
-        return BookSearchPageResponse.from(new PageImpl<>(
-            content,
-            pageable,
-            books.getTotalElements()
+            )
         ));
     }
 
@@ -126,104 +126,15 @@ public class BookSearchService {
         List<BookPlatformSummary> summaries
     ) {
         return summaries.stream()
-            .collect(Collectors.groupingBy(
-                BookPlatformSummary::bookId,
-                Collectors.collectingAndThen(
-                    Collectors.toList(),
-                    values -> values.stream()
-                        .sorted(Comparator.comparing(BookPlatformSummary::platformName)
-                            .thenComparing(BookPlatformSummary::platformId))
-                        .map(summary -> new BookPlatformSummaryResponse(
-                            summary.platformId(),
-                            summary.platformCode(),
-                            summary.platformName(),
-                            summary.itemCount()
-                        ))
-                        .toList()
-                )
+            .collect(Collectors.toMap(
+                BookPlatformSummary::bookOriginId,
+                summary -> List.of(new BookPlatformSummaryResponse(
+                    summary.platformId(),
+                    summary.platformCode(),
+                    summary.platformName(),
+                    summary.itemCount()
+                ))
             ));
-    }
-
-    private List<BookSubscriptionPlatformResponse> resolveSubscriptionPlatformLinks(
-        List<BookSubscriptionPlatformLink> links
-    ) {
-        Map<Long, BookSubscriptionPlatformResponse> platformsById = new LinkedHashMap<>();
-
-        for (BookSubscriptionPlatformLink link : links) {
-            BookSubscriptionPlatformResponse next = BookSubscriptionPlatformResponse.from(link);
-            BookSubscriptionPlatformResponse current = platformsById.get(link.platformId());
-
-            if (current == null || (isBlank(current.bookUrl()) && !isBlank(next.bookUrl()))) {
-                platformsById.put(link.platformId(), next);
-            }
-        }
-
-        return List.copyOf(platformsById.values());
-    }
-
-    private List<BookLibraryPlatformHoldingResponse> resolveLibraryPlatformHoldings(
-        List<BookLibraryHolding> holdings
-    ) {
-        Map<Long, LibraryPlatformHoldingAccumulator> platformsById = new LinkedHashMap<>();
-
-        for (BookLibraryHolding holding : holdings) {
-            LibraryPlatformHoldingAccumulator platform = platformsById.computeIfAbsent(
-                holding.platformId(),
-                ignored -> new LibraryPlatformHoldingAccumulator(
-                    holding.platformId(),
-                    holding.platformCode(),
-                    holding.platformName()
-                )
-            );
-
-            BookLibraryHoldingResponse next = BookLibraryHoldingResponse.from(holding);
-            BookLibraryHoldingResponse current = platform.librariesById.get(holding.libraryId());
-
-            if (current == null || shouldReplaceLibraryHolding(current, next)) {
-                platform.librariesById.put(holding.libraryId(), next);
-            }
-        }
-
-        return platformsById.values()
-            .stream()
-            .map(platform -> BookLibraryPlatformHoldingResponse.of(
-                platform.platformId,
-                platform.platformCode,
-                platform.platformName,
-                List.copyOf(platform.librariesById.values())
-            ))
-            .toList();
-    }
-
-    private boolean shouldReplaceLibraryHolding(
-        BookLibraryHoldingResponse current,
-        BookLibraryHoldingResponse next
-    ) {
-        return (isBlank(current.bookUrl()) && !isBlank(next.bookUrl()))
-            || (isBlank(current.coverImgUrl()) && !isBlank(next.coverImgUrl()))
-            || (isBlank(current.siteUrl()) && !isBlank(next.siteUrl()));
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
-    }
-
-    private static class LibraryPlatformHoldingAccumulator {
-
-        private final Long platformId;
-        private final String platformCode;
-        private final String platformName;
-        private final Map<Long, BookLibraryHoldingResponse> librariesById = new LinkedHashMap<>();
-
-        private LibraryPlatformHoldingAccumulator(
-            Long platformId,
-            String platformCode,
-            String platformName
-        ) {
-            this.platformId = platformId;
-            this.platformCode = platformCode;
-            this.platformName = platformName;
-        }
     }
 
     /**

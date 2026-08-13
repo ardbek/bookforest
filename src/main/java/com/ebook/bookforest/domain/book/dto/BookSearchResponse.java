@@ -1,15 +1,17 @@
 package com.ebook.bookforest.domain.book.dto;
 
-import com.ebook.bookforest.domain.book.entity.Book;
+import com.ebook.bookforest.domain.book.entity.BookOrigin;
 import com.ebook.bookforest.domain.book.repository.BookCategorySummary;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 
 public record BookSearchResponse(
-    Long bookId,
+    Long bookOriginId,
+    Long platformId,
+    String platformCode,
+    String platformName,
     String title,
-    String subTitle,
     String author,
     String publisher,
     LocalDate publishedDate,
@@ -31,14 +33,14 @@ public record BookSearchResponse(
 ) {
 
     public static BookSearchResponse from(
-        Book book,
+        BookOrigin bookOrigin,
         BookCategorySummary category,
         List<BookPlatformSummaryResponse> libraryPlatforms,
         List<BookPlatformSummaryResponse> subscriptionPlatforms,
         boolean favoriteYn
     ) {
         return from(
-            book,
+            bookOrigin,
             category,
             libraryPlatforms,
             subscriptionPlatforms,
@@ -49,7 +51,7 @@ public record BookSearchResponse(
     }
 
     public static BookSearchResponse from(
-        Book book,
+        BookOrigin bookOrigin,
         BookCategorySummary category,
         List<BookPlatformSummaryResponse> libraryPlatforms,
         List<BookPlatformSummaryResponse> subscriptionPlatforms,
@@ -62,16 +64,18 @@ public record BookSearchResponse(
             .sum();
 
         return new BookSearchResponse(
-            book.getId(),
-            book.getTitle(),
-            book.getSubTitle(),
-            book.getAuthor(),
-            book.getPublisher(),
-            book.getPublishedDate(),
-            book.getIsbn13(),
-            book.getIsbn10(),
-            book.getCoverImgUrl(),
-            book.getDescription(),
+            bookOrigin.getId(),
+            bookOrigin.getPlatform().getId(),
+            bookOrigin.getPlatform().getPlatformCode(),
+            bookOrigin.getPlatform().getPlatformName(),
+            bookOrigin.getTitleRaw(),
+            bookOrigin.getAuthorRaw(),
+            bookOrigin.getPublisherRaw(),
+            bookOrigin.getPublishedDate(),
+            bookOrigin.getIsbn13Raw(),
+            bookOrigin.getIsbn10Raw(),
+            bookOrigin.getCoverImgUrl(),
+            bookOrigin.getDescriptionRaw(),
             category != null ? category.categoryId() : null,
             category != null ? category.categoryName() : null,
             category != null ? category.categoryPath() : null,

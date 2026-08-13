@@ -14,10 +14,16 @@ import java.time.LocalDateTime;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 @Entity
-@Table(name = "book_origin")
+@Table(
+    name = "book_origin",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_book_origin_platform_book",
+        columnNames = {"platform_id", "content_type", "platform_book_id"}
+    )
+)
 public class BookOrigin extends BaseTimeEntity {
 
-    /* 원본 도서 ID */
+    /* 플랫폼 도서 ID */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "book_origin_id")
@@ -49,7 +55,7 @@ public class BookOrigin extends BaseTimeEntity {
     @Builder.Default
     private ContentType contentType = ContentType.EBOOK;
 
-    /* 원본 제목 */
+    /* 플랫폼 원본 제목 */
     @Lob
     @Column(
         name = "title_raw",
@@ -58,7 +64,7 @@ public class BookOrigin extends BaseTimeEntity {
     )
     private String titleRaw;
 
-    /* 원본 저자 */
+    /* 플랫폼 원본 저자 */
     @Lob
     @Column(
         name = "author_raw",
@@ -66,7 +72,7 @@ public class BookOrigin extends BaseTimeEntity {
     )
     private String authorRaw;
 
-    /* 원본 출판사 */
+    /* 플랫폼 원본 출판사 */
     @Lob
     @Column(
         name = "publisher_raw",

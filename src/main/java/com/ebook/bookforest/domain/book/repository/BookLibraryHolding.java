@@ -4,7 +4,7 @@ import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
 
 /**
  * 전자도서관 보유 목록 조회 DTO
- * @param bookId
+ * @param bookOriginId
  * @param platformId
  * @param platformCode
  * @param platformName
@@ -17,7 +17,7 @@ import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
  * @param availabilityStatus
  */
 public record BookLibraryHolding(
-    Long bookId,
+    Long bookOriginId,
     Long platformId,
     String platformCode,
     String platformName,

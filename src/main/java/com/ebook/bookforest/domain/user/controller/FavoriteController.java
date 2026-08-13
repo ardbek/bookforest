@@ -41,31 +41,31 @@ public class FavoriteController {
     }
 
     @GetMapping("/favorite-books/ids")
-    public List<Long> getFavoriteBookIds(@AuthenticationPrincipal JwtPrincipal principal) {
-        return favoriteService.getFavoriteBookIds(principal.userId());
+    public List<Long> getFavoriteBookOriginIds(@AuthenticationPrincipal JwtPrincipal principal) {
+        return favoriteService.getFavoriteBookOriginIds(principal.userId());
     }
 
     /**
      * 즐겨찾기 도서 추가
      * @param principal
-     * @param bookId
+     * @param bookOriginId
      * @return
      */
-    @PostMapping("/favorite-books/{bookId}")
-    public ResponseEntity<Void> addFavoriteBook(@AuthenticationPrincipal JwtPrincipal principal, @PathVariable Long bookId) {
-        favoriteService.addFavoriteBook(principal.userId(), bookId);
+    @PostMapping("/favorite-books/{bookOriginId}")
+    public ResponseEntity<Void> addFavoriteBook(@AuthenticationPrincipal JwtPrincipal principal, @PathVariable Long bookOriginId) {
+        favoriteService.addFavoriteBook(principal.userId(), bookOriginId);
         return ResponseEntity.noContent().build();
     }
 
     /**
      * 즐겨찾기 도서 삭제
      * @param principal
-     * @param bookId
+     * @param bookOriginId
      * @return
      */
-    @DeleteMapping("/favorite-books/{bookId}")
-    public ResponseEntity<Void> removeFavoriteBook(@AuthenticationPrincipal JwtPrincipal principal, @PathVariable Long bookId) {
-        favoriteService.removeFavoriteBook(principal.userId(), bookId);
+    @DeleteMapping("/favorite-books/{bookOriginId}")
+    public ResponseEntity<Void> removeFavoriteBook(@AuthenticationPrincipal JwtPrincipal principal, @PathVariable Long bookOriginId) {
+        favoriteService.removeFavoriteBook(principal.userId(), bookOriginId);
         return ResponseEntity.noContent().build();
     }
 

@@ -1,6 +1,6 @@
 package com.ebook.bookforest.domain.user.service;
 
-import com.ebook.bookforest.domain.book.entity.Book;
+import com.ebook.bookforest.domain.book.entity.BookOrigin;
 import com.ebook.bookforest.domain.book.repository.BookRepository;
 import com.ebook.bookforest.domain.library.entity.Library;
 import com.ebook.bookforest.domain.library.repository.LibraryRepository;
@@ -51,43 +51,44 @@ public class FavoriteService {
     }
 
     @Transactional(readOnly = true)
-    public List<Long> getFavoriteBookIds(Long userId) {
+    public List<Long> getFavoriteBookOriginIds(Long userId) {
         validateActiveUser(userId);
-        return favoriteBookRepository.findBookIdsByUserId(userId);
+        return favoriteBookRepository.findBookOriginIdsByUserId(userId);
     }
 
     /**
      * 즐겨찾기 도서 추가
      * @param userId
-     * @param bookId
+     * @param bookOriginId
      */
     @Transactional
-    public void addFavoriteBook(Long userId, Long bookId) {
+    public void addFavoriteBook(Long userId, Long bookOriginId) {
         User user = getActiveUser(userId);
-        Book book = bookRepository.findById(bookId)
+        BookOrigin bookOrigin = bookRepository.findById(bookOriginId)
+            .filter(BookOrigin::isActive)
             .orElseThrow(() -> new FavoriteException(
                 FavoriteErrorCode.BOOK_NOT_FOUND
             ));
 
-        if (favoriteBookRepository.existsByUser_IdAndBook_Id(userId, bookId)) {
+        if (favoriteBookRepository.existsByUser_IdAndBookOrigin_Id(userId, bookOriginId)) {
             return;
         }
 
         favoriteBookRepository.save(FavoriteBook.builder()
             .user(user)
-            .book(book)
+            .bookOrigin(bookOrigin)
             .build());
     }
 
     /**
      * 즐겨찾기 도서 제거
      * @param userId
-     * @param bookId
+     * @param bookOriginId
      */
     @Transactional
-    public void removeFavoriteBook(Long userId, Long bookId) {
+    public void removeFavoriteBook(Long userId, Long bookOriginId) {
         validateActiveUser(userId);
-        favoriteBookRepository.deleteByUser_IdAndBook_Id(userId, bookId);
+        favoriteBookRepository.deleteByUser_IdAndBookOrigin_Id(userId, bookOriginId);
     }
 
     /**
