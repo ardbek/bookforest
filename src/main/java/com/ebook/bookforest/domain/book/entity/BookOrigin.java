@@ -17,8 +17,8 @@ import java.time.LocalDateTime;
 @Table(
     name = "book_origin",
     uniqueConstraints = @UniqueConstraint(
-        name = "uk_book_origin_platform_book",
-        columnNames = {"platform_id", "content_type", "platform_book_id"}
+        name = "uk_book_origin_platform_source",
+        columnNames = {"platform_id", "platform_book_id"}
     )
 )
 public class BookOrigin extends BaseTimeEntity {

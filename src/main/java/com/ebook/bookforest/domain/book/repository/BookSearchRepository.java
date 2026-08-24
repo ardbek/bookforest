@@ -17,5 +17,9 @@ public interface BookSearchRepository {
 
     List<BookLibraryHolding> findLibraryHoldings(List<Long> bookOriginIds);
 
+    List<BookLibraryHolding> findAllLibraryHoldings(List<Long> bookOriginIds);
+
+    List<BookSubscriptionAsset> findSubscriptionAssets(List<Long> bookOriginIds);
+
     List<BookCategorySummary> findCategorySummaries(List<Long> bookOriginIds);
 }

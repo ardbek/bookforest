@@ -191,6 +191,68 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
     }
 
     @Override
+    public List<BookLibraryHolding> findAllLibraryHoldings(List<Long> bookOriginIds) {
+        if (bookOriginIds == null || bookOriginIds.isEmpty()) {
+            return List.of();
+        }
+
+        return entityManager.createQuery(
+                """
+                    select new com.ebook.bookforest.domain.book.repository.BookLibraryHolding(
+                        bo.id,
+                        p.id,
+                        p.platformCode,
+                        p.platformName,
+                        l.id,
+                        l.libraryCode,
+                        l.libraryName,
+                        l.siteUrl,
+                        coalesce(lb.bookUrl, bo.bookUrl),
+                        coalesce(lb.coverImgUrl, bo.coverImgUrl),
+                        lb.availabilityStatus
+                    )
+                    from LibraryBook lb
+                    join lb.bookOrigin bo
+                    join lb.library l
+                    join l.platform p
+                    where bo.id in :bookOriginIds
+                      and bo.active = true
+                      and l.visible = true
+                      and p.supportsLibrary = true
+                      and p.id = bo.platform.id
+                    order by l.libraryName asc, l.id asc, lb.id asc
+                    """,
+                BookLibraryHolding.class
+            )
+            .setParameter("bookOriginIds", bookOriginIds)
+            .getResultList();
+    }
+
+    @Override
+    public List<BookSubscriptionAsset> findSubscriptionAssets(List<Long> bookOriginIds) {
+        if (bookOriginIds == null || bookOriginIds.isEmpty()) {
+            return List.of();
+        }
+
+        return entityManager.createQuery(
+                """
+                    select new com.ebook.bookforest.domain.book.repository.BookSubscriptionAsset(
+                        bo.id,
+                        coalesce(sb.bookUrl, bo.bookUrl),
+                        coalesce(sb.coverImgUrl, bo.coverImgUrl)
+                    )
+                    from SubscriptionBook sb
+                    join sb.bookOrigin bo
+                    where bo.id in :bookOriginIds
+                      and bo.active = true
+                    """,
+                BookSubscriptionAsset.class
+            )
+            .setParameter("bookOriginIds", bookOriginIds)
+            .getResultList();
+    }
+
+    @Override
     public List<BookCategorySummary> findCategorySummaries(List<Long> bookOriginIds) {
         if (bookOriginIds == null || bookOriginIds.isEmpty()) {
             return List.of();
@@ -222,6 +284,11 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
         List<String> clauses = new ArrayList<>();
         Map<String, Object> parameters = new HashMap<>();
         clauses.add("bo.active = true");
+
+        if (condition.sourcePlatformId() != null) {
+            clauses.add("bo.platform.id = :sourcePlatformId");
+            parameters.put("sourcePlatformId", condition.sourcePlatformId());
+        }
 
         String keyword = normalizeKeyword(condition.keyword());
         if (keyword != null) {

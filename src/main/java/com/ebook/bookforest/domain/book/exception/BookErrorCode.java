@@ -5,6 +5,22 @@ import org.springframework.http.HttpStatus;
 
 public enum BookErrorCode implements ErrorCode {
 
+    INVALID_PLATFORM_BOOK_REQUEST(
+        HttpStatus.BAD_REQUEST,
+        "invalid_platform_book_request",
+        "플랫폼 도서 요청이 올바르지 않습니다."
+    ),
+    PLATFORM_NOT_FOUND(
+        HttpStatus.NOT_FOUND,
+        "platform_not_found",
+        "존재하지 않는 플랫폼입니다."
+    ),
+    PLATFORM_BOOK_NOT_FOUND(
+        HttpStatus.NOT_FOUND,
+        "platform_book_not_found",
+        "존재하지 않는 플랫폼 도서입니다."
+    ),
+
     BOOK_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "book_not_found",

@@ -9,6 +9,7 @@ public record BookSearchCondition(
     List<Long> categoryIds,
     List<Long> libraryIds,
     List<Long> libraryPlatformIds,
-    List<Long> subscriptionPlatformIds
+    List<Long> subscriptionPlatformIds,
+    Long sourcePlatformId
 ) {
 }
