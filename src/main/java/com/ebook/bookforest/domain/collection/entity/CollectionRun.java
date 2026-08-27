@@ -65,8 +65,7 @@ public class CollectionRun extends BaseTimeEntity {
     @Builder.Default
     private int failCount = 0;
 
-    @Lob
-    @Column(name = "error_message")
+    @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
     public void success(
