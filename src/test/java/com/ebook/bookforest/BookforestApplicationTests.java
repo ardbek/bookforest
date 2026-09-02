@@ -167,7 +167,7 @@ class BookforestApplicationTests {
 
         PlatformBookSearchResponse grouped = bookSearchService.searchPlatformBooks(
             "계약검색도서",
-            null,
+            "TITLE",
             null,
             "ALL",
             null,
@@ -186,10 +186,10 @@ class BookforestApplicationTests {
             .noneMatch(PlatformBookSearchResponse.Item::favoriteYn));
 
         PlatformBookSearchResponse firstPage = bookSearchService.searchPlatformBooks(
-            "계약검색도서", null, null, "LIBRARY", null, libraryPlatform.getId(), 0, 1, null
+            "계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 0, 1, null
         );
         PlatformBookSearchResponse secondPage = bookSearchService.searchPlatformBooks(
-            "계약검색도서", null, null, "LIBRARY", null, libraryPlatform.getId(), 1, 1, null
+            "계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 1, 1, null
         );
         assertFalse(firstPage.groups().get(0).last());
         assertTrue(secondPage.groups().get(0).last());
@@ -198,7 +198,7 @@ class BookforestApplicationTests {
             secondPage.groups().get(0).content().get(0).sourceBookId()
         );
         PlatformBookSearchResponse emptyPage = bookSearchService.searchPlatformBooks(
-            "계약검색도서", null, null, "LIBRARY", null, libraryPlatform.getId(), 9, 1, null
+            "계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 9, 1, null
         );
         assertEquals(2, emptyPage.totalElements());
         assertTrue(emptyPage.groups().get(0).content().isEmpty());
