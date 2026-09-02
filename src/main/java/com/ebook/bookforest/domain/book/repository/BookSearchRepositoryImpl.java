@@ -353,13 +353,24 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
             case TITLE -> clauses.add("lower(bo.titleNorm) like :keyword");
             case AUTHOR -> clauses.add("lower(bo.authorNorm) like :keyword");
             case PUBLISHER -> clauses.add("lower(bo.publisherNorm) like :keyword");
-            case ALL -> clauses.add("""
-                (
-                    lower(bo.titleNorm) like :keyword
-                    or lower(bo.authorNorm) like :keyword
-                    or lower(bo.publisherNorm) like :keyword
-                )
-                """);
+            case ALL -> {
+                // ponytail: ngram cannot index one character; add dedicated parsing if fallback searches get hot.
+                String fullTextClause = keyword.codePointCount(0, keyword.length()) > 1
+                    && !keyword.contains("\"")
+                    ? "full_text_match(bo.titleNorm, bo.authorNorm, "
+                        + "bo.publisherNorm, :fullTextKeyword) and "
+                    : "";
+                clauses.add(fullTextClause + """
+                    (
+                        lower(bo.titleNorm) like :keyword
+                        or lower(bo.authorNorm) like :keyword
+                        or lower(bo.publisherNorm) like :keyword
+                    )
+                    """);
+                if (!fullTextClause.isEmpty()) {
+                    parameters.put("fullTextKeyword", "+\"" + keyword + "\"");
+                }
+            }
         }
         parameters.put("keyword", keywordPattern);
     }
