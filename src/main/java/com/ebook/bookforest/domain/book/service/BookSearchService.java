@@ -163,6 +163,7 @@ public class BookSearchService {
             type.name(),
             book.getPlatformBookId(),
             book.getId(),
+            book.getContentType(),
             book.getTitleRaw(),
             book.getAuthorRaw(),
             book.getPublisherRaw(),
@@ -341,6 +342,7 @@ public class BookSearchService {
             return new PlatformBookSearchResponse.Item(
                 book.getPlatformBookId(),
                 book.getId(),
+                book.getContentType(),
                 book.getTitleRaw(),
                 book.getAuthorRaw(),
                 book.getPublisherRaw(),

@@ -2,6 +2,7 @@ package com.ebook.bookforest.domain.book.dto;
 
 import com.ebook.bookforest.domain.book.entity.BookOrigin;
 import com.ebook.bookforest.domain.book.repository.BookCategorySummary;
+import com.ebook.bookforest.domain.book.enums.ContentType;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
@@ -11,6 +12,8 @@ public record BookSearchResponse(
     Long platformId,
     String platformCode,
     String platformName,
+    String platformType,
+    ContentType contentType,
     String title,
     String author,
     String publisher,
@@ -68,6 +71,9 @@ public record BookSearchResponse(
             bookOrigin.getPlatform().getId(),
             bookOrigin.getPlatform().getPlatformCode(),
             bookOrigin.getPlatform().getPlatformName(),
+            bookOrigin.getPlatform().isSupportsSubscription() ? "SUBSCRIPTION"
+                : bookOrigin.getPlatform().isSupportsLibrary() ? "LIBRARY" : null,
+            bookOrigin.getContentType(),
             bookOrigin.getTitleRaw(),
             bookOrigin.getAuthorRaw(),
             bookOrigin.getPublisherRaw(),

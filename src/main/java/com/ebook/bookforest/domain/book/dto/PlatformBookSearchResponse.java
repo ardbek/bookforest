@@ -1,5 +1,6 @@
 package com.ebook.bookforest.domain.book.dto;
 
+import com.ebook.bookforest.domain.book.enums.ContentType;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -22,6 +23,7 @@ public record PlatformBookSearchResponse(
     public record Item(
         String sourceBookId,
         Long canonicalBookId,
+        ContentType contentType,
         String title,
         String author,
         String publisher,
