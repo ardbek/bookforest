@@ -5,6 +5,7 @@ import com.ebook.bookforest.domain.book.dto.BookSearchResponse;
 import com.ebook.bookforest.domain.book.dto.PlatformBookDetailResponse;
 import com.ebook.bookforest.domain.book.dto.PlatformBookSearchResponse;
 import com.ebook.bookforest.domain.book.service.BookSearchService;
+import com.ebook.bookforest.domain.book.service.PlatformBookService;
 import com.ebook.bookforest.global.security.jwt.model.JwtPrincipal;
 import com.ebook.bookforest.domain.searchkeyword.SearchKeywordService;
 import com.ebook.bookforest.domain.searchkeyword.SearchKeywordWebConfig;
@@ -26,19 +27,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class BookController {
 
     private final BookSearchService bookSearchService;
+    private final PlatformBookService platformBookService;
     private final SearchKeywordService searchKeywords;
 
-    /**
-     * 도서 검색
-     * @param keyword
-     * @param searchType
-     * @param categoryIds
-     * @param libraryIds
-     * @param libraryPlatformIds
-     * @param subscriptionPlatformIds
-     * @param pageable
-     * @return
-     */
+    // 일반 도서를 검색하고 검색어 집계에 결과를 전달한다.
     @GetMapping("/search")
     public BookSearchPageResponse searchBooks(
         @RequestParam(required = false) String keyword,
@@ -64,6 +56,7 @@ public class BookController {
         return result;
     }
 
+    // 플랫폼별 도서를 검색하고 검색어 집계에 결과를 전달한다.
     @GetMapping("/search/platforms")
     public PlatformBookSearchResponse searchPlatformBooks(
         @RequestParam String keyword,
@@ -77,7 +70,7 @@ public class BookController {
         @AuthenticationPrincipal JwtPrincipal principal,
         HttpServletRequest request
     ) {
-        var result = bookSearchService.searchPlatformBooks(
+        var result = platformBookService.searchPlatformBooks(
             keyword,
             searchType,
             categoryIds,
@@ -93,19 +86,21 @@ public class BookController {
         return result;
     }
 
+    // 플랫폼의 원천 도서 상세를 조회한다.
     @GetMapping("/platforms/{platformId}/books/{sourceBookId}")
     public PlatformBookDetailResponse getPlatformBook(
         @PathVariable Long platformId,
         @PathVariable String sourceBookId,
         @AuthenticationPrincipal JwtPrincipal principal
     ) {
-        return bookSearchService.getPlatformBook(
+        return platformBookService.getPlatformBook(
             platformId,
             sourceBookId,
             principal == null ? null : principal.userId()
         );
     }
 
+    // 도서 ID로 상세 정보를 조회한다.
     @GetMapping("/{bookOriginId}")
     public BookSearchResponse getBook(@PathVariable Long bookOriginId) {
         return bookSearchService.getBook(bookOriginId);

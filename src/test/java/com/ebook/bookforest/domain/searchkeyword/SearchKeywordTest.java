@@ -256,7 +256,7 @@ class SearchKeywordTest {
 
     @Test
     void httpSearchAndPopularEndpointsShareRealRedisAndRespectMetadata() throws Exception {
-        var books = mock(com.ebook.bookforest.domain.book.service.BookSearchService.class);
+        var books = mock(com.ebook.bookforest.domain.book.service.PlatformBookService.class);
         when(books.searchPlatformBooks(anyString(), any(), any(), anyString(), any(), any(), anyInt(), anyInt(), any()))
             .thenReturn(new com.ebook.bookforest.domain.book.dto.PlatformBookSearchResponse(1, List.of()));
         var web = new SearchKeywordWebConfig(service, config);
@@ -267,7 +267,8 @@ class SearchKeywordTest {
             new org.springframework.web.servlet.config.annotation.InterceptorRegistration(invocation.getArgument(0)));
         web.addInterceptors(capturingRegistry);
         var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
-            new com.ebook.bookforest.domain.book.controller.BookController(books, service),
+            new com.ebook.bookforest.domain.book.controller.BookController(
+                mock(com.ebook.bookforest.domain.book.service.BookSearchService.class), books, service),
             new PopularSearchKeywordController(service))
             .addMappedInterceptors(new String[]{"/api/book/search", "/api/book/search/platforms"}, captured.getValue()).build();
         String url = "/api/book/search/platforms";

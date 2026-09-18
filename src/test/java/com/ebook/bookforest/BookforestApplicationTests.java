@@ -16,6 +16,7 @@ import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
 import com.ebook.bookforest.domain.book.repository.BookRepository;
 import com.ebook.bookforest.domain.book.repository.BookSearchCondition;
 import com.ebook.bookforest.domain.book.service.BookSearchService;
+import com.ebook.bookforest.domain.book.service.PlatformBookService;
 import com.ebook.bookforest.domain.library.entity.Library;
 import com.ebook.bookforest.domain.platform.entity.Platform;
 import jakarta.persistence.EntityManager;
@@ -34,6 +35,9 @@ class BookforestApplicationTests {
 
     @Autowired
     private BookSearchService bookSearchService;
+
+    @Autowired
+    private PlatformBookService platformBookService;
 
     @Autowired
     private EntityManager entityManager;
@@ -165,7 +169,7 @@ class BookforestApplicationTests {
         entityManager.flush();
         entityManager.clear();
 
-        PlatformBookSearchResponse grouped = bookSearchService.searchPlatformBooks(
+        PlatformBookSearchResponse grouped = platformBookService.searchPlatformBooks(
             "계약검색도서",
             "TITLE",
             null,
@@ -185,10 +189,10 @@ class BookforestApplicationTests {
             .flatMap(group -> group.content().stream())
             .noneMatch(PlatformBookSearchResponse.Item::favoriteYn));
 
-        PlatformBookSearchResponse firstPage = bookSearchService.searchPlatformBooks(
+        PlatformBookSearchResponse firstPage = platformBookService.searchPlatformBooks(
             "계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 0, 1, null
         );
-        PlatformBookSearchResponse secondPage = bookSearchService.searchPlatformBooks(
+        PlatformBookSearchResponse secondPage = platformBookService.searchPlatformBooks(
             "계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 1, 1, null
         );
         assertFalse(firstPage.groups().get(0).last());
@@ -197,13 +201,13 @@ class BookforestApplicationTests {
             firstPage.groups().get(0).content().get(0).sourceBookId(),
             secondPage.groups().get(0).content().get(0).sourceBookId()
         );
-        PlatformBookSearchResponse emptyPage = bookSearchService.searchPlatformBooks(
+        PlatformBookSearchResponse emptyPage = platformBookService.searchPlatformBooks(
             "계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 9, 1, null
         );
         assertEquals(2, emptyPage.totalElements());
         assertTrue(emptyPage.groups().get(0).content().isEmpty());
 
-        PlatformBookDetailResponse detail = bookSearchService.getPlatformBook(
+        PlatformBookDetailResponse detail = platformBookService.getPlatformBook(
             libraryPlatform.getId(), "library-source", null
         );
         assertEquals(2, detail.libraryCount());
@@ -211,7 +215,7 @@ class BookforestApplicationTests {
         assertEquals(2, detail.libraries().size());
         assertEquals("ISBN", detail.relatedBooks().get(0).matchType());
 
-        PlatformBookDetailResponse subscriptionDetail = bookSearchService.getPlatformBook(
+        PlatformBookDetailResponse subscriptionDetail = platformBookService.getPlatformBook(
             subscriptionPlatform.getId(), "subscription-source", null
         );
         assertEquals("https://subscription.example/subscription-source", subscriptionDetail.bookUrl());

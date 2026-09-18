@@ -8,6 +8,7 @@ import com.ebook.bookforest.domain.platform.entity.Platform;
 import com.ebook.bookforest.domain.platform.repository.PlatformRepository;
 import com.ebook.bookforest.domain.user.repository.FavoriteBookRepository;
 import com.ebook.bookforest.domain.user.repository.FavoriteLibraryRepository;
+import com.ebook.bookforest.domain.user.service.FavoriteLookupService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -43,8 +44,9 @@ class BookContentTypeTest {
             .platformBookId("source").titleRaw("도서").contentType(contentType).build();
         var books = mock(BookRepository.class);
         var platforms = mock(PlatformRepository.class);
-        var service = new BookSearchService(books, platforms,
-            mock(FavoriteBookRepository.class), mock(FavoriteLibraryRepository.class));
+        var service = new BookSearchService(books);
+        var platformService = new PlatformBookService(books, platforms,
+            new FavoriteLookupService(mock(FavoriteBookRepository.class), mock(FavoriteLibraryRepository.class)));
         when(platforms.findAllByOrderByPlatformNameAsc()).thenReturn(List.of(platform));
         when(platforms.findById(1L)).thenReturn(Optional.of(platform));
         when(books.findById(2L)).thenReturn(Optional.of(book));
@@ -53,8 +55,8 @@ class BookContentTypeTest {
         when(books.searchBooks(any(), any())).thenReturn(new PageImpl<>(List.of(book)));
 
         assertEquals(contentType, service.getBook(2L).contentType());
-        assertEquals(contentType, service.getPlatformBook(1L, "source", null).contentType());
-        assertEquals(contentType, service.searchPlatformBooks("도서", null, null, "ALL",
+        assertEquals(contentType, platformService.getPlatformBook(1L, "source", null).contentType());
+        assertEquals(contentType, platformService.searchPlatformBooks("도서", null, null, "ALL",
             null, null, 0, 20, null).groups().get(0).content().get(0).contentType());
         assertEquals(contentType, service.searchBooks("도서", null, null, null, null, null,
             PageRequest.of(0, 20)).books().content().get(0).contentType());
