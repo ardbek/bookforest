@@ -62,6 +62,8 @@ public class SecurityConfig {
                     "/**"
                 ).permitAll()
 
+                .requestMatchers(HttpMethod.GET, "/api/books/popular", "/api/books/trending").permitAll()
+
                 .requestMatchers(
                     "/api/platform",
                     "/api/platform/**",

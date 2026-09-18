@@ -3,6 +3,11 @@ server:
   shutdown: graceful
   forward-headers-strategy: framework
 app:
+  ranking:
+    api-key: ${DATA4LIBRARY_API_KEY:}
+    base-url: ${DATA4LIBRARY_BASE_URL:https://data4library.kr/api}
+    read-timeout: ${DATA4LIBRARY_READ_TIMEOUT:30s}
+    refresh-cron: ${RANKING_REFRESH_CRON:0 0 0,6,12,18 * * *}
   security:
     jwt:
       secret: ${JWT_SECRET}

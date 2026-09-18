@@ -9,6 +9,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BookRepository extends JpaRepository<BookOrigin, Long>, BookSearchRepository {
 
     @EntityGraph(attributePaths = "platform")
+    List<BookOrigin> findAllByIsbn13RawInAndActiveTrueOrderByIdAsc(List<String> isbns);
+
+    @EntityGraph(attributePaths = "platform")
     Optional<BookOrigin> findByPlatform_IdAndPlatformBookIdAndActiveTrue(
         Long platformId,
         String platformBookId
