@@ -7,10 +7,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.Duration;
-import java.time.Instant;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -24,10 +20,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-    private static final String REFRESH_TOKEN_COOKIE_PATH = "/api";
-
     private final AuthService authService;
-    private final OAuth2Properties properties;
     private final RefreshTokenCookieManager cookieManager;
     private final OAuth2AuthorizedClientRepository authorizedClientRepository;
     private final SocialOAuthCredentialService credentialService;
@@ -40,7 +33,6 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         SocialOAuthCredentialService credentialService
     ) {
         this.authService = authService;
-        this.properties = properties;
         this.cookieManager = cookieManager;
         this.authorizedClientRepository = authorizedClientRepository;
         this.credentialService = credentialService;
@@ -51,6 +43,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     }
 
 
+    // 소셜 인증 정보를 저장하고 로그인 쿠키 발급 후 프론트 콜백으로 이동한다.
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
         Authentication authentication) throws IOException, ServletException {
@@ -79,11 +72,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         super.onAuthenticationSuccess(request, response, authentication);
     }
 
-    /**
-     * 소셜 로그인 인증 정보 OAuth2User 객체로 변환
-     * @param authentication
-     * @return
-     */
+    // 소셜 로그인에 필요한 사용자 정보를 확인한다.
     private CustomOAuth2User extractOAuth2User(Authentication authentication) {
         Object principal = authentication.getPrincipal();
 
@@ -94,39 +83,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         return oAuth2User;
     }
 
-    /**
-     * RT Cookie에 추가
-     * @param response
-     * @param loginSession
-     */
-    private void addRefreshTokenCookie(HttpServletResponse response, LoginSession loginSession) {
-        Duration maxAge = Duration.between(Instant.now(), loginSession.refreshTokenExpiresAt());
-
-        if (maxAge.isZero() || maxAge.isNegative()) {
-            throw new IllegalStateException("Refresh Token 만료 시간이 올바르지 않습니다.");
-        }
-
-        ResponseCookie cookie = ResponseCookie
-            .from(
-                properties.refreshTokenCookieName(),
-                loginSession.refreshToken()
-            )
-            .httpOnly(true)
-            .secure(properties.cookieSecure())
-            .sameSite(properties.cookieSameSite())
-            .path(REFRESH_TOKEN_COOKIE_PATH)
-            .maxAge(maxAge)
-            .build();
-
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-
-    }
-
-    /**
-     * OAuthToken 추출
-     * @param authentication
-     * @return
-     */
+    // OAuth 인증 토큰을 확인한다.
     private OAuth2AuthenticationToken extractOAuth2AuthenticationToken(Authentication authentication) {
         if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
             return oauthToken;
@@ -135,12 +92,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         throw new IllegalArgumentException("OAuth2 인증 정보가 올바르지 않습니다.");
     }
 
-    /**
-     * OAuth2AuthorizedClient 조회
-     * @param oauthToken
-     * @param request
-     * @return
-     */
+    // 현재 인증에 연결된 소셜 공급자의 발급 정보를 조회한다.
     private OAuth2AuthorizedClient loadAuthorizedClient(OAuth2AuthenticationToken oauthToken, HttpServletRequest request) {
 
         OAuth2AuthorizedClient authorizedClient =
