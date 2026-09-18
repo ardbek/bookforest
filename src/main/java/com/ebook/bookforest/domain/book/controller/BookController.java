@@ -6,6 +6,9 @@ import com.ebook.bookforest.domain.book.dto.PlatformBookDetailResponse;
 import com.ebook.bookforest.domain.book.dto.PlatformBookSearchResponse;
 import com.ebook.bookforest.domain.book.service.BookSearchService;
 import com.ebook.bookforest.global.security.jwt.model.JwtPrincipal;
+import com.ebook.bookforest.domain.searchkeyword.SearchKeywordService;
+import com.ebook.bookforest.domain.searchkeyword.SearchKeywordWebConfig;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class BookController {
 
     private final BookSearchService bookSearchService;
+    private final SearchKeywordService searchKeywords;
 
     /**
      * 도서 검색
@@ -43,9 +47,10 @@ public class BookController {
         @RequestParam(required = false) List<Long> libraryIds,
         @RequestParam(required = false) List<Long> libraryPlatformIds,
         @RequestParam(required = false) List<Long> subscriptionPlatformIds,
-        @PageableDefault(size = 20) Pageable pageable
+        @PageableDefault(size = 20) Pageable pageable,
+        HttpServletRequest request
     ) {
-        return bookSearchService.searchBooks(
+        var result = bookSearchService.searchBooks(
             keyword,
             searchType,
             categoryIds,
@@ -54,6 +59,9 @@ public class BookController {
             subscriptionPlatformIds,
             pageable
         );
+        searchKeywords.record((String) request.getAttribute(SearchKeywordWebConfig.ACTOR),
+            request.getHeader("X-Search-Event-Id"), keyword, pageable.getPageNumber(), result.books().totalElements());
+        return result;
     }
 
     @GetMapping("/search/platforms")
@@ -66,9 +74,10 @@ public class BookController {
         @RequestParam(required = false) Long platformId,
         @RequestParam int page,
         @RequestParam int size,
-        @AuthenticationPrincipal JwtPrincipal principal
+        @AuthenticationPrincipal JwtPrincipal principal,
+        HttpServletRequest request
     ) {
-        return bookSearchService.searchPlatformBooks(
+        var result = bookSearchService.searchPlatformBooks(
             keyword,
             searchType,
             categoryIds,
@@ -79,6 +88,9 @@ public class BookController {
             size,
             principal == null ? null : principal.userId()
         );
+        searchKeywords.record((String) request.getAttribute(SearchKeywordWebConfig.ACTOR),
+            request.getHeader("X-Search-Event-Id"), keyword, page, result.totalElements());
+        return result;
     }
 
     @GetMapping("/platforms/{platformId}/books/{sourceBookId}")

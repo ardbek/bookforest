@@ -3,6 +3,17 @@ server:
   shutdown: graceful
   forward-headers-strategy: framework
 app:
+  search-ranking:
+    actor-secret: ${SEARCH_RANKING_SECRET:${JWT_SECRET}}
+    cookie-secure: ${COOKIE_SECURE:false}
+    redis-timeout: ${SEARCH_RANKING_REDIS_TIMEOUT:250ms}
+    blocked-keywords: ${SEARCH_RANKING_BLOCKED_KEYWORDS:}
+    trusted-proxies: ${SEARCH_RANKING_TRUSTED_PROXIES:}
+    minimum-count: 3
+    actor-minute-limit: 10
+    actor-hour-limit: 100
+    api-actor-minute-limit: 60
+    api-ip-minute-limit: 300
   ranking:
     api-key: ${DATA4LIBRARY_API_KEY:}
     base-url: ${DATA4LIBRARY_BASE_URL:https://data4library.kr/api}

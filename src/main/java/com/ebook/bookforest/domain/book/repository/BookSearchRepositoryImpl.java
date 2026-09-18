@@ -416,7 +416,7 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
         if (keyword == null || keyword.isBlank()) {
             return null;
         }
-        return keyword.trim().toLowerCase(Locale.ROOT);
+        return com.ebook.bookforest.domain.searchkeyword.SearchKeywordRules.normalize(keyword);
     }
 
     private boolean isEmpty(List<Long> values) {

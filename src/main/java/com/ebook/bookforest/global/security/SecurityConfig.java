@@ -63,6 +63,7 @@ public class SecurityConfig {
                 ).permitAll()
 
                 .requestMatchers(HttpMethod.GET, "/api/books/popular", "/api/books/trending").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/search-keywords/popular").permitAll()
 
                 .requestMatchers(
                     "/api/platform",
@@ -121,6 +122,7 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(List.of("Retry-After"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
