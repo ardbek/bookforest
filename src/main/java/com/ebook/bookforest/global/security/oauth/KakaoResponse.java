@@ -3,6 +3,10 @@ package com.ebook.bookforest.global.security.oauth;
 import com.ebook.bookforest.domain.user.enums.SocialProvider;
 import java.util.Map;
 
+/**
+ * 카카오 사용자 정보 응답
+ * 식별값은 최상위 id, 이메일은 kakao_account, 닉네임과 프로필 이미지는 kakao_account.profile 아래에 있음
+ */
 public class KakaoResponse implements OAuth2Response {
 
     private final Map<String, Object> attributes;
@@ -23,45 +27,38 @@ public class KakaoResponse implements OAuth2Response {
 
     @Override
     public String getEmail() {
-        Map<String, Object> kakaoAccount = getMap(attributes, "kakao_account");
-        return getString(kakaoAccount, "email");
+        return getString(getKakaoAccount(), "email");
     }
 
     @Override
     public String getNickname() {
-        Map<String, Object> kakaoAccount = getMap(attributes, "kakao_account");
-        Map<String, Object> profile = getMap(kakaoAccount, "profile");
-
-        return getString(profile, "nickname");
+        return getString(getProfile(), "nickname");
     }
 
     @Override
     public String getProfileImageUrl() {
-        Map<String, Object> kakaoAccount =
-            getMap(attributes, "kakao_account");
+        return getString(getProfile(), "profile_image_url");
+    }
 
-        Map<String, Object> profile =
-            getMap(kakaoAccount, "profile");
+    private Map<String, Object> getKakaoAccount() {
+        return getMap(attributes, "kakao_account");
+    }
 
-        return getString(profile, "profile_image_url");
+    private Map<String, Object> getProfile() {
+        return getMap(getKakaoAccount(), "profile");
     }
 
     private static String getString(Map<String, Object> source, String key) {
         Object value = source.get(key);
-
         return value == null ? null : String.valueOf(value);
     }
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> getMap(Map<String, Object> source, String key) {
         Object value = source.get(key);
-
-        if(value instanceof Map<?, ?>) {
+        if (value instanceof Map<?, ?>) {
             return (Map<String, Object>) value;
         }
-
         return Map.of();
     }
-
-
 }

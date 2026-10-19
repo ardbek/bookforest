@@ -2,20 +2,20 @@ package com.ebook.bookforest.global.security.oauth;
 
 import com.ebook.bookforest.domain.user.enums.SocialProvider;
 
+/**
+ * 소셜 플랫폼별 사용자 정보 응답을 같은 형태로 읽기 위한 인터페이스
+ * 플랫폼이 주지 않은 값은 null
+ */
 public interface OAuth2Response {
 
-    /* 소셜 로그인 플랫폼 */
     SocialProvider getProvider();
 
-    /* 사용자 식별값 */
+    /** 소셜 플랫폼이 부여한 사용자 식별값 */
     String getProviderSubject();
 
-    /* 이메일 */
     String getEmail();
 
-    /* 닉네임 */
     String getNickname();
 
-    /* 프로필 이미지 */
     String getProfileImageUrl();
 }

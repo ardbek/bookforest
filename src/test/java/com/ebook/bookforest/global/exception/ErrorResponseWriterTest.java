@@ -1,7 +1,7 @@
 package com.ebook.bookforest.global.exception;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.ebook.bookforest.global.security.SecurityErrorCode;
 import org.junit.jupiter.api.Test;
@@ -25,15 +25,12 @@ class ErrorResponseWriterTest {
             SecurityErrorCode.INVALID_ACCESS_TOKEN
         );
 
-        assertEquals(401, response.getStatus());
-        assertTrue(response.getContentType().startsWith("application/json"));
-        assertEquals("UTF-8", response.getCharacterEncoding());
-        assertEquals(
-            "{\"code\":\"invalid_access_token\","
-                + "\"message\":\"Access Token이 올바르지 않습니다.\"}",
-            response.getContentAsString()
-        );
-        assertTrue(response.isCommitted());
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentType()).startsWith("application/json");
+        assertThat(response.getCharacterEncoding()).isEqualTo("UTF-8");
+        assertThat(response.getContentAsString()).isEqualTo("{\"code\":\"invalid_access_token\","
+                + "\"message\":\"Access Token이 올바르지 않습니다.\"}");
+        assertThat(response.isCommitted()).isTrue();
     }
 
     @Test
@@ -51,7 +48,7 @@ class ErrorResponseWriterTest {
             SecurityErrorCode.ACCESS_DENIED
         );
 
-        assertEquals(202, response.getStatus());
-        assertEquals("already written", response.getContentAsString());
+        assertThat(response.getStatus()).isEqualTo(202);
+        assertThat(response.getContentAsString()).isEqualTo("already written");
     }
 }

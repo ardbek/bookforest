@@ -1,11 +1,11 @@
 package com.ebook.bookforest.global.security.jwt;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import com.ebook.bookforest.domain.auth.exception.AuthErrorCode;
 import com.ebook.bookforest.domain.auth.exception.AuthException;
@@ -38,21 +38,18 @@ class JwtExceptionHandlerFilterTest {
         throws Exception {
 
         FilterChain chain = mock(FilterChain.class);
-        doThrow(new ExpiredJwtException(
+        willThrow(new ExpiredJwtException(
             mock(Header.class),
             mock(Claims.class),
             "expired"
-        )).when(chain).doFilter(any(), any());
+        )).given(chain).doFilter(any(), any());
 
         MockHttpServletResponse response =
             execute(chain);
 
-        assertEquals(401, response.getStatus());
-        assertEquals(
-            "{\"code\":\"expired_access_token\","
-                + "\"message\":\"Access Token이 만료되었습니다.\"}",
-            response.getContentAsString()
-        );
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).isEqualTo("{\"code\":\"expired_access_token\","
+                + "\"message\":\"Access Token이 만료되었습니다.\"}");
     }
 
     @Test
@@ -60,18 +57,15 @@ class JwtExceptionHandlerFilterTest {
         throws Exception {
 
         FilterChain chain = mock(FilterChain.class);
-        doThrow(new MalformedJwtException("invalid"))
-            .when(chain).doFilter(any(), any());
+        willThrow(new MalformedJwtException("invalid"))
+            .given(chain).doFilter(any(), any());
 
         MockHttpServletResponse response =
             execute(chain);
 
-        assertEquals(401, response.getStatus());
-        assertEquals(
-            "{\"code\":\"invalid_access_token\","
-                + "\"message\":\"Access Token이 올바르지 않습니다.\"}",
-            response.getContentAsString()
-        );
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).isEqualTo("{\"code\":\"invalid_access_token\","
+                + "\"message\":\"Access Token이 올바르지 않습니다.\"}");
     }
 
     @Test
@@ -79,34 +73,28 @@ class JwtExceptionHandlerFilterTest {
         throws Exception {
 
         FilterChain chain = mock(FilterChain.class);
-        doThrow(new AuthException(AuthErrorCode.USER_NOT_ACTIVE))
-            .when(chain).doFilter(any(), any());
+        willThrow(new AuthException(AuthErrorCode.USER_NOT_ACTIVE))
+            .given(chain).doFilter(any(), any());
 
         MockHttpServletResponse response = execute(chain);
 
-        assertEquals(401, response.getStatus());
-        assertEquals(
-            "{\"code\":\"user_not_active\","
-                + "\"message\":\"활성화된 사용자를 찾을 수 없습니다.\"}",
-            response.getContentAsString()
-        );
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).isEqualTo("{\"code\":\"user_not_active\","
+                + "\"message\":\"활성화된 사용자를 찾을 수 없습니다.\"}");
     }
 
     @Test
     void JWT와_무관한_IllegalArgumentException은_가로채지_않는다()
         throws Exception {
         FilterChain chain = mock(FilterChain.class);
-        doThrow(new IllegalArgumentException("not a jwt error"))
-            .when(chain).doFilter(any(), any());
+        willThrow(new IllegalArgumentException("not a jwt error"))
+            .given(chain).doFilter(any(), any());
 
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> filter.doFilter(
+        assertThatThrownBy(() -> filter.doFilter(
                 new MockHttpServletRequest(),
                 new MockHttpServletResponse(),
                 chain
-            )
-        );
+            )).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -121,7 +109,7 @@ class JwtExceptionHandlerFilterTest {
 
         filter.doFilter(request, response, chain);
 
-        verify(chain).doFilter(request, response);
+        then(chain).should().doFilter(request, response);
     }
 
     private MockHttpServletResponse execute(

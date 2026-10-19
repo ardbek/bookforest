@@ -11,5 +11,4 @@ public class BookforestApplication {
     public static void main(String[] args) {
         SpringApplication.run(BookforestApplication.class, args);
     }
-
 }

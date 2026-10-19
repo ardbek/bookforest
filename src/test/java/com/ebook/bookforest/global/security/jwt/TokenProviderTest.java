@@ -1,9 +1,8 @@
 package com.ebook.bookforest.global.security.jwt;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ebook.bookforest.domain.user.enums.UserRole;
 import com.ebook.bookforest.global.security.jwt.model.IssuedAccessToken;
@@ -48,9 +47,9 @@ class TokenProviderTest {
         ParsedAccessToken parsed =
             tokenProvider.parseAccessToken(issued.value());
 
-        assertEquals(42L, parsed.userId());
-        assertEquals(issued.tokenId(), parsed.tokenId());
-        assertEquals(UserRole.ROLE_USER, parsed.role());
+        assertThat(parsed.userId()).isEqualTo(42L);
+        assertThat(parsed.tokenId()).isEqualTo(issued.tokenId());
+        assertThat(parsed.role()).isEqualTo(UserRole.ROLE_USER);
     }
 
     @Test
@@ -67,10 +66,10 @@ class TokenProviderTest {
         ParsedRefreshToken parsed =
             tokenProvider.parseRefreshToken(rotated.value());
 
-        assertNotNull(initial.sessionId());
-        assertEquals(initial.sessionId(), rotated.sessionId());
-        assertEquals(rotated.sessionId(), parsed.sessionId());
-        assertNotEquals(initial.tokenId(), rotated.tokenId());
+        assertThat(initial.sessionId()).isNotNull();
+        assertThat(rotated.sessionId()).isEqualTo(initial.sessionId());
+        assertThat(parsed.sessionId()).isEqualTo(rotated.sessionId());
+        assertThat(rotated.tokenId()).isNotEqualTo(initial.tokenId());
     }
 
     @Test
@@ -78,11 +77,8 @@ class TokenProviderTest {
         IssuedRefreshToken refreshToken =
             tokenProvider.createRefreshToken(42L);
 
-        assertThrows(
-            MalformedJwtException.class,
-            () -> tokenProvider.parseAccessToken(
+        assertThatThrownBy(() -> tokenProvider.parseAccessToken(
                 refreshToken.value()
-            )
-        );
+            )).isInstanceOf(MalformedJwtException.class);
     }
 }

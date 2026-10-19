@@ -1,18 +1,16 @@
 package com.ebook.bookforest.global.security.jwt;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 import com.ebook.bookforest.domain.auth.exception.AuthErrorCode;
 import com.ebook.bookforest.domain.auth.exception.AuthException;
 import com.ebook.bookforest.domain.user.enums.UserRole;
-import com.ebook.bookforest.domain.user.repository.UserRepository;
+import com.ebook.bookforest.domain.user.service.UserService;
 import com.ebook.bookforest.global.security.jwt.model.JwtPrincipal;
 import com.ebook.bookforest.global.security.jwt.model.ParsedAccessToken;
 import io.jsonwebtoken.MalformedJwtException;
@@ -35,16 +33,16 @@ import org.springframework.security.core.context.SecurityContextHolder;
 class JwtAuthenticationFilterTest {
 
     private TokenProvider tokenProvider;
-    private UserRepository userRepository;
+    private UserService userService;
     private JwtAuthenticationFilter filter;
 
     @BeforeEach
     void setUp() {
         tokenProvider = mock(TokenProvider.class);
-        userRepository = mock(UserRepository.class);
+        userService = mock(UserService.class);
         filter = new JwtAuthenticationFilter(
             tokenProvider,
-            userRepository
+            userService
         );
     }
 
@@ -65,12 +63,9 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilter(request, response, chain);
 
-        verify(chain).doFilter(request, response);
-        verifyNoInteractions(tokenProvider);
-        assertEquals(
-            null,
-            SecurityContextHolder.getContext().getAuthentication()
-        );
+        then(chain).should().doFilter(request, response);
+        then(tokenProvider).shouldHaveNoInteractions();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isEqualTo(null);
     }
 
     @Test
@@ -83,10 +78,10 @@ class JwtAuthenticationFilterTest {
             UserRole.ROLE_USER,
             Instant.now().plusSeconds(1800)
         );
-        when(tokenProvider.parseAccessToken("valid-token"))
-            .thenReturn(parsedToken);
-        when(userRepository.existsByIdAndActiveTrue(42L))
-            .thenReturn(true);
+        given(tokenProvider.parseAccessToken("valid-token"))
+            .willReturn(parsedToken);
+        given(userService.isActiveUser(42L))
+            .willReturn(true);
 
         MockHttpServletRequest request = bearerRequest("valid-token");
         MockHttpServletResponse response =
@@ -98,18 +93,13 @@ class JwtAuthenticationFilterTest {
         Authentication authentication = SecurityContextHolder
             .getContext()
             .getAuthentication();
-        assertTrue(authentication.isAuthenticated());
-        assertEquals(
-            new JwtPrincipal(42L, UserRole.ROLE_USER),
-            authentication.getPrincipal()
-        );
-        assertEquals(
-            List.of(new SimpleGrantedAuthority("ROLE_USER")),
-            List.copyOf(authentication.getAuthorities())
-        );
-        verify(tokenProvider).parseAccessToken("valid-token");
-        verify(userRepository).existsByIdAndActiveTrue(42L);
-        verify(chain).doFilter(request, response);
+        assertThat(authentication.isAuthenticated()).isTrue();
+        assertThat(authentication.getPrincipal()).isEqualTo(new JwtPrincipal(42L, UserRole.ROLE_USER));
+        assertThat(List.copyOf(authentication.getAuthorities()))
+            .isEqualTo(List.of(new SimpleGrantedAuthority("ROLE_USER")));
+        then(tokenProvider).should().parseAccessToken("valid-token");
+        then(userService).should().isActiveUser(42L);
+        then(chain).should().doFilter(request, response);
     }
 
     @Test
@@ -120,32 +110,25 @@ class JwtAuthenticationFilterTest {
             UserRole.ROLE_USER,
             Instant.now().plusSeconds(1800)
         );
-        when(tokenProvider.parseAccessToken("valid-token"))
-            .thenReturn(parsedToken);
-        when(userRepository.existsByIdAndActiveTrue(42L))
-            .thenReturn(false);
+        given(tokenProvider.parseAccessToken("valid-token"))
+            .willReturn(parsedToken);
+        given(userService.isActiveUser(42L))
+            .willReturn(false);
 
         MockHttpServletRequest request = bearerRequest("valid-token");
         MockHttpServletResponse response =
             new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
 
-        AuthException exception = assertThrows(
-            AuthException.class,
-            () -> filter.doFilter(request, response, chain)
-        );
+        AuthException exception = assertThatExceptionOfType(AuthException.class)
+            .isThrownBy(() -> filter.doFilter(request, response, chain))
+            .actual();
 
-        assertEquals(
-            AuthErrorCode.USER_NOT_ACTIVE,
-            exception.getErrorCode()
-        );
-        assertEquals(
-            null,
-            SecurityContextHolder.getContext().getAuthentication()
-        );
-        verify(tokenProvider).parseAccessToken("valid-token");
-        verify(userRepository).existsByIdAndActiveTrue(42L);
-        verifyNoInteractions(chain);
+        assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.USER_NOT_ACTIVE);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isEqualTo(null);
+        then(tokenProvider).should().parseAccessToken("valid-token");
+        then(userService).should().isActiveUser(42L);
+        then(chain).shouldHaveNoInteractions();
     }
 
     @Test
@@ -154,28 +137,22 @@ class JwtAuthenticationFilterTest {
             new MockHttpServletRequest();
         request.addHeader(HttpHeaders.AUTHORIZATION, "Basic value");
 
-        assertThrows(
-            MalformedJwtException.class,
-            () -> filter.doFilter(
+        assertThatThrownBy(() -> filter.doFilter(
                 request,
                 new MockHttpServletResponse(),
                 mock(FilterChain.class)
-            )
-        );
-        verifyNoInteractions(tokenProvider);
+            )).isInstanceOf(MalformedJwtException.class);
+        then(tokenProvider).shouldHaveNoInteractions();
     }
 
     @Test
     void Bearer_뒤의_토큰이_비어_있으면_거부한다() {
-        assertThrows(
-            MalformedJwtException.class,
-            () -> filter.doFilter(
+        assertThatThrownBy(() -> filter.doFilter(
                 bearerRequest("   "),
                 new MockHttpServletResponse(),
                 mock(FilterChain.class)
-            )
-        );
-        verifyNoInteractions(tokenProvider);
+            )).isInstanceOf(MalformedJwtException.class);
+        then(tokenProvider).shouldHaveNoInteractions();
     }
 
     @Test
@@ -197,12 +174,9 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilter(request, response, chain);
 
-        assertSame(
-            existing,
-            SecurityContextHolder.getContext().getAuthentication()
-        );
-        verifyNoInteractions(tokenProvider);
-        verify(chain).doFilter(request, response);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(existing);
+        then(tokenProvider).shouldHaveNoInteractions();
+        then(chain).should().doFilter(request, response);
     }
 
     @ParameterizedTest
@@ -225,8 +199,8 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilter(request, response, chain);
 
-        verifyNoInteractions(tokenProvider);
-        verify(chain).doFilter(request, response);
+        then(tokenProvider).shouldHaveNoInteractions();
+        then(chain).should().doFilter(request, response);
     }
 
     private MockHttpServletRequest bearerRequest(String token) {

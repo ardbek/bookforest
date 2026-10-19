@@ -13,63 +13,41 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 
+/**
+ * 소셜 로그인에 성공한 사용자, 로그인 성공 처리기가 토큰 발급과 소셜 토큰 저장에 사용
+ */
+@Getter
 public class CustomOAuth2User implements OAuth2User {
 
-    /* userId(sequence) */
     private final Long userId;
-    /* 권한 */
     private final UserRole role;
-    /* 로그인 플랫폼 */
     private final SocialProvider provider;
-    /* 소셜 플랫폼 사용자 식별값 */
+
+    /** 소셜 플랫폼이 부여한 사용자 식별값 */
     private final String providerSubject;
-    /* 로그인 플랫폼에서 제공한 사용자 정보 */
+
+    /** 소셜 플랫폼이 준 사용자 정보 원본, 수정 불가 */
     private final Map<String, Object> attributes;
-    /**/
+
     private final Collection<? extends GrantedAuthority> authorities;
 
     public CustomOAuth2User(
-        Long userId
-        , UserRole role
-        , SocialProvider provider
-        , String providerSubject
-        , Map<String, Object> attributes
+        Long userId,
+        UserRole role,
+        SocialProvider provider,
+        String providerSubject,
+        Map<String, Object> attributes
     ) {
         this.userId = Objects.requireNonNull(userId, "userId is null");
         this.role = Objects.requireNonNull(role, "role is null");
         this.provider = Objects.requireNonNull(provider, "provider is null");
-        this.providerSubject =Objects.requireNonNull(providerSubject,"providerSubject is null");
-        this.attributes = Collections.unmodifiableMap(new LinkedHashMap<>(attributes)); // 수정 방지 unmodifiableMap으로 생성
+        this.providerSubject = Objects.requireNonNull(providerSubject, "providerSubject is null");
+        this.attributes = Collections.unmodifiableMap(new LinkedHashMap<>(attributes));
         this.authorities = List.of(new SimpleGrantedAuthority(role.name()));
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public UserRole getRole() {
-        return role;
-    }
-
-    public SocialProvider getProvider() {
-        return provider;
-    }
-
-    public String getProviderSubject() {return providerSubject;}
-
-    @Override
-    public Map<String, Object> getAttributes() {
-        return attributes;
-    }
-
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return authorities;
     }
 
     @Override
     public String getName() {
         return String.valueOf(userId);
     }
-
 }

@@ -1,7 +1,6 @@
 package com.ebook.bookforest.global.exception;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.ebook.bookforest.domain.auth.exception.AuthErrorCode;
@@ -32,16 +31,8 @@ class GlobalExceptionHandlerTest {
                 )
             );
 
-        assertEquals(
-            HttpStatus.UNAUTHORIZED,
-            result.getStatusCode()
-        );
-        assertEquals(
-            ErrorResponse.from(
-                AuthErrorCode.INVALID_REFRESH_TOKEN
-            ),
-            result.getBody()
-        );
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(result.getBody()).isEqualTo(ErrorResponse.from(AuthErrorCode.INVALID_REFRESH_TOKEN));
     }
 
     @Test
@@ -51,16 +42,8 @@ class GlobalExceptionHandlerTest {
                 mock(HttpMessageNotReadableException.class)
             );
 
-        assertEquals(
-            HttpStatus.BAD_REQUEST,
-            result.getStatusCode()
-        );
-        assertEquals(
-            ErrorResponse.from(
-                CommonErrorCode.INVALID_REQUEST
-            ),
-            result.getBody()
-        );
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(result.getBody()).isEqualTo(ErrorResponse.from(CommonErrorCode.INVALID_REQUEST));
     }
 
     @Test
@@ -72,16 +55,8 @@ class GlobalExceptionHandlerTest {
                 )
             );
 
-        assertEquals(
-            HttpStatus.METHOD_NOT_ALLOWED,
-            result.getStatusCode()
-        );
-        assertEquals(
-            ErrorResponse.from(
-                CommonErrorCode.METHOD_NOT_ALLOWED
-            ),
-            result.getBody()
-        );
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(result.getBody()).isEqualTo(ErrorResponse.from(CommonErrorCode.METHOD_NOT_ALLOWED));
     }
 
     @Test
@@ -91,16 +66,8 @@ class GlobalExceptionHandlerTest {
                 mock(NoResourceFoundException.class)
             );
 
-        assertEquals(
-            HttpStatus.NOT_FOUND,
-            result.getStatusCode()
-        );
-        assertEquals(
-            ErrorResponse.from(
-                CommonErrorCode.RESOURCE_NOT_FOUND
-            ),
-            result.getBody()
-        );
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(result.getBody()).isEqualTo(ErrorResponse.from(CommonErrorCode.RESOURCE_NOT_FOUND));
     }
 
     @Test
@@ -113,20 +80,8 @@ class GlobalExceptionHandlerTest {
                 new RuntimeException(sensitiveMessage)
             );
 
-        assertEquals(
-            HttpStatus.INTERNAL_SERVER_ERROR,
-            result.getStatusCode()
-        );
-        assertEquals(
-            ErrorResponse.from(
-                CommonErrorCode.INTERNAL_SERVER_ERROR
-            ),
-            result.getBody()
-        );
-        assertFalse(
-            result.getBody().message().contains(
-                sensitiveMessage
-            )
-        );
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(result.getBody()).isEqualTo(ErrorResponse.from(CommonErrorCode.INTERNAL_SERVER_ERROR));
+        assertThat(result.getBody().message()).doesNotContain(sensitiveMessage);
     }
 }

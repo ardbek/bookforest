@@ -1,17 +1,12 @@
 package com.ebook.bookforest.global.security.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 import com.ebook.bookforest.domain.auth.dto.LoginSession;
 import com.ebook.bookforest.domain.auth.service.AuthService;
@@ -74,15 +69,15 @@ class OAuth2AuthenticationSuccessHandlerTest {
             issuedAt
         );
 
-        when(authorizedClient.getAccessToken())
-            .thenReturn(providerAccessToken);
-        when(authorizedClient.getRefreshToken())
-            .thenReturn(providerRefreshToken);
-        when(authorizedClientRepository.loadAuthorizedClient(
+        given(authorizedClient.getAccessToken())
+            .willReturn(providerAccessToken);
+        given(authorizedClient.getRefreshToken())
+            .willReturn(providerRefreshToken);
+        given(authorizedClientRepository.loadAuthorizedClient(
             anyString(),
             any(OAuth2AuthenticationToken.class),
             any(HttpServletRequest.class)
-        )).thenReturn(authorizedClient);
+        )).willReturn(authorizedClient);
 
         OAuth2Properties properties = new OAuth2Properties(
             CALLBACK_URL,
@@ -107,8 +102,8 @@ class OAuth2AuthenticationSuccessHandlerTest {
         throws Exception {
 
         Instant expiresAt = Instant.now().plus(Duration.ofDays(14));
-        when(authService.createLoginSession(USER_ID))
-            .thenReturn(new LoginSession(
+        given(authService.createLoginSession(USER_ID))
+            .willReturn(new LoginSession(
                 BOOKFOREST_REFRESH_TOKEN,
                 expiresAt
             ));
@@ -124,40 +119,38 @@ class OAuth2AuthenticationSuccessHandlerTest {
             authentication
         );
 
-        assertEquals(CALLBACK_URL, response.getRedirectedUrl());
-        assertEquals(302, response.getStatus());
+        assertThat(response.getRedirectedUrl()).isEqualTo(CALLBACK_URL);
+        assertThat(response.getStatus()).isEqualTo(302);
 
         String setCookie = response.getHeader(HttpHeaders.SET_COOKIE);
-        assertNotNull(setCookie);
-        assertTrue(setCookie.startsWith(
-            COOKIE_NAME + "=" + BOOKFOREST_REFRESH_TOKEN
-        ));
-        assertTrue(setCookie.contains("Path=/api"));
-        assertTrue(setCookie.contains("HttpOnly"));
-        assertTrue(setCookie.contains("SameSite=Lax"));
-        assertTrue(setCookie.contains("Max-Age="));
-        assertFalse(setCookie.contains("Secure"));
+        assertThat(setCookie).isNotNull();
+        assertThat(setCookie).startsWith(COOKIE_NAME + "=" + BOOKFOREST_REFRESH_TOKEN);
+        assertThat(setCookie).contains("Path=/api");
+        assertThat(setCookie).contains("HttpOnly");
+        assertThat(setCookie).contains("SameSite=Lax");
+        assertThat(setCookie).contains("Max-Age=");
+        assertThat(setCookie).doesNotContain("Secure");
 
-        verify(authorizedClientRepository).loadAuthorizedClient(
+        then(authorizedClientRepository).should().loadAuthorizedClient(
             "naver",
             authentication,
             request
         );
-        verify(credentialService).saveOrUpdate(
+        then(credentialService).should().saveOrUpdate(
             SocialProvider.NAVER,
             NAVER_PROVIDER_SUBJECT,
             providerAccessToken,
             providerRefreshToken
         );
-        verify(authService).createLoginSession(USER_ID);
+        then(authService).should().createLoginSession(USER_ID);
     }
 
     @Test
     void 카카오_로그인도_소셜_토큰_저장_서비스에_전달한다()
         throws Exception {
 
-        when(authService.createLoginSession(USER_ID))
-            .thenReturn(new LoginSession(
+        given(authService.createLoginSession(USER_ID))
+            .willReturn(new LoginSession(
                 BOOKFOREST_REFRESH_TOKEN,
                 Instant.now().plus(Duration.ofDays(14))
             ));
@@ -171,7 +164,7 @@ class OAuth2AuthenticationSuccessHandlerTest {
             authentication
         );
 
-        verify(credentialService).saveOrUpdate(
+        then(credentialService).should().saveOrUpdate(
             SocialProvider.KAKAO,
             KAKAO_PROVIDER_SUBJECT,
             providerAccessToken,
@@ -200,8 +193,8 @@ class OAuth2AuthenticationSuccessHandlerTest {
                 credentialService
             );
 
-        when(authService.createLoginSession(USER_ID))
-            .thenReturn(new LoginSession(
+        given(authService.createLoginSession(USER_ID))
+            .willReturn(new LoginSession(
                 BOOKFOREST_REFRESH_TOKEN,
                 Instant.now().plus(Duration.ofDays(14))
             ));
@@ -215,98 +208,86 @@ class OAuth2AuthenticationSuccessHandlerTest {
         );
 
         String setCookie = response.getHeader(HttpHeaders.SET_COOKIE);
-        assertNotNull(setCookie);
-        assertTrue(setCookie.contains("Secure"));
-        assertTrue(setCookie.contains("SameSite=None"));
-        assertEquals(
-            "https://bookforest.cc/auth/callback",
-            response.getRedirectedUrl()
-        );
+        assertThat(setCookie).isNotNull();
+        assertThat(setCookie).contains("Secure");
+        assertThat(setCookie).contains("SameSite=None");
+        assertThat(response.getRedirectedUrl()).isEqualTo("https://bookforest.cc/auth/callback");
     }
 
     @Test
     void 인증_Principal이_CustomOAuth2User가_아니면_로그인_세션을_만들지_않는다() {
         Authentication authentication = mock(Authentication.class);
-        when(authentication.getPrincipal()).thenReturn("wrong-principal");
+        given(authentication.getPrincipal()).willReturn("wrong-principal");
 
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> successHandler.onAuthenticationSuccess(
+        assertThatThrownBy(() -> successHandler.onAuthenticationSuccess(
                 new MockHttpServletRequest(),
                 response,
                 authentication
-            )
-        );
+            )).isInstanceOf(IllegalArgumentException.class);
 
-        verifyNoInteractions(authService, credentialService);
-        assertNull(response.getHeader(HttpHeaders.SET_COOKIE));
-        assertNull(response.getRedirectedUrl());
+        then(authService).shouldHaveNoInteractions();
+        then(credentialService).shouldHaveNoInteractions();
+        assertThat(response.getHeader(HttpHeaders.SET_COOKIE)).isNull();
+        assertThat(response.getRedirectedUrl()).isNull();
     }
 
     @Test
     void 인증_객체가_OAuth2AuthenticationToken이_아니면_로그인하지_않는다() {
         CustomOAuth2User principal = customOAuth2User(SocialProvider.KAKAO);
         Authentication authentication = mock(Authentication.class);
-        when(authentication.getPrincipal()).thenReturn(principal);
+        given(authentication.getPrincipal()).willReturn(principal);
 
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> successHandler.onAuthenticationSuccess(
+        assertThatThrownBy(() -> successHandler.onAuthenticationSuccess(
                 new MockHttpServletRequest(),
                 new MockHttpServletResponse(),
                 authentication
-            )
-        );
+            )).isInstanceOf(IllegalArgumentException.class);
 
-        verifyNoInteractions(authService, credentialService);
+        then(authService).shouldHaveNoInteractions();
+        then(credentialService).shouldHaveNoInteractions();
     }
 
     @Test
     void OAuth2AuthorizedClient가_없으면_소셜_토큰과_로그인_세션을_만들지_않는다() {
-        when(authorizedClientRepository.loadAuthorizedClient(
+        given(authorizedClientRepository.loadAuthorizedClient(
             anyString(),
             any(OAuth2AuthenticationToken.class),
             any(HttpServletRequest.class)
-        )).thenReturn(null);
+        )).willReturn(null);
 
         OAuth2AuthenticationToken authentication =
             authenticationWithCustomOAuth2User(SocialProvider.NAVER);
 
-        assertThrows(
-            IllegalStateException.class,
-            () -> successHandler.onAuthenticationSuccess(
+        assertThatThrownBy(() -> successHandler.onAuthenticationSuccess(
                 new MockHttpServletRequest(),
                 new MockHttpServletResponse(),
                 authentication
-            )
-        );
+            )).isInstanceOf(IllegalStateException.class);
 
-        verifyNoInteractions(authService, credentialService);
+        then(authService).shouldHaveNoInteractions();
+        then(credentialService).shouldHaveNoInteractions();
     }
 
     @Test
     void 이미_만료된_Bookforest_Refresh_Token이면_쿠키와_redirect를_만들지_않는다() {
-        when(authService.createLoginSession(USER_ID))
-            .thenReturn(new LoginSession(
+        given(authService.createLoginSession(USER_ID))
+            .willReturn(new LoginSession(
                 BOOKFOREST_REFRESH_TOKEN,
                 Instant.now().minusSeconds(1)
             ));
 
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> successHandler.onAuthenticationSuccess(
+        assertThatThrownBy(() -> successHandler.onAuthenticationSuccess(
                 new MockHttpServletRequest(),
                 response,
                 authenticationWithCustomOAuth2User(SocialProvider.KAKAO)
-            )
-        );
+            )).isInstanceOf(IllegalArgumentException.class);
 
-        assertNull(response.getHeader(HttpHeaders.SET_COOKIE));
-        assertNull(response.getRedirectedUrl());
+        assertThat(response.getHeader(HttpHeaders.SET_COOKIE)).isNull();
+        assertThat(response.getRedirectedUrl()).isNull();
     }
 
     private OAuth2AuthenticationToken authenticationWithCustomOAuth2User(

@@ -4,6 +4,9 @@ import com.ebook.bookforest.domain.user.enums.UserRole;
 import java.security.Principal;
 import java.util.Objects;
 
+/**
+ * Access Token으로 인증된 사용자, Controller에서 @AuthenticationPrincipal로 받음
+ */
 public record JwtPrincipal(
     Long userId,
     UserRole role

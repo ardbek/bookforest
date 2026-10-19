@@ -1,7 +1,8 @@
 package com.ebook.bookforest.global.security.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ebook.bookforest.domain.user.enums.SocialProvider;
 import com.ebook.bookforest.domain.user.enums.UserRole;
@@ -23,21 +24,18 @@ class CustomOAuth2UserTest {
             Map.of("id", PROVIDER_SUBJECT)
         );
 
-        assertEquals(PROVIDER_SUBJECT, user.getProviderSubject());
-        assertEquals(String.valueOf(USER_ID), user.getName());
+        assertThat(user.getProviderSubject()).isEqualTo(PROVIDER_SUBJECT);
+        assertThat(user.getName()).isEqualTo(String.valueOf(USER_ID));
     }
 
     @Test
     void 소셜_플랫폼_사용자_식별값이_null이면_생성할_수_없다() {
-        assertThrows(
-            NullPointerException.class,
-            () -> new CustomOAuth2User(
+        assertThatThrownBy(() -> new CustomOAuth2User(
                 USER_ID,
                 UserRole.ROLE_USER,
                 SocialProvider.KAKAO,
                 null,
                 Map.of("id", PROVIDER_SUBJECT)
-            )
-        );
+            )).isInstanceOf(NullPointerException.class);
     }
 }

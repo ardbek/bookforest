@@ -1,7 +1,7 @@
 package com.ebook.bookforest.global.security.jwt;
 
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import com.ebook.bookforest.global.exception.ErrorResponseWriter;
 import com.ebook.bookforest.global.security.SecurityErrorCode;
@@ -30,7 +30,7 @@ class JwtSecurityHandlersTest {
             new BadCredentialsException("authentication required")
         );
 
-        verify(writer).write(
+        then(writer).should().write(
             response,
             SecurityErrorCode.AUTHENTICATION_REQUIRED
         );
@@ -53,7 +53,7 @@ class JwtSecurityHandlersTest {
             new AccessDeniedException("access denied")
         );
 
-        verify(writer).write(
+        then(writer).should().write(
             response,
             SecurityErrorCode.ACCESS_DENIED
         );

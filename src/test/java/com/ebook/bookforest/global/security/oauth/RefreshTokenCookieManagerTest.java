@@ -1,9 +1,8 @@
 package com.ebook.bookforest.global.security.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import jakarta.servlet.http.Cookie;
 import java.time.Instant;
@@ -38,10 +37,7 @@ class RefreshTokenCookieManagerTest {
             new Cookie(COOKIE_NAME, "raw-refresh-token")
         );
 
-        assertEquals(
-            "raw-refresh-token",
-            cookieManager.read(request).orElseThrow()
-        );
+        assertThat(cookieManager.read(request).orElseThrow()).isEqualTo("raw-refresh-token");
     }
 
     @Test
@@ -49,7 +45,7 @@ class RefreshTokenCookieManagerTest {
         MockHttpServletRequest requestWithoutCookies =
             new MockHttpServletRequest();
 
-        assertTrue(cookieManager.read(requestWithoutCookies).isEmpty());
+        assertThat(cookieManager.read(requestWithoutCookies)).isEmpty();
 
         MockHttpServletRequest requestWithBlankCookie =
             new MockHttpServletRequest();
@@ -57,7 +53,7 @@ class RefreshTokenCookieManagerTest {
             new Cookie(COOKIE_NAME, "   ")
         );
 
-        assertTrue(cookieManager.read(requestWithBlankCookie).isEmpty());
+        assertThat(cookieManager.read(requestWithBlankCookie)).isEmpty();
     }
 
     @Test
@@ -72,15 +68,13 @@ class RefreshTokenCookieManagerTest {
         );
 
         String setCookie = response.getHeader(HttpHeaders.SET_COOKIE);
-        assertTrue(setCookie.startsWith(
-            COOKIE_NAME + "=raw-refresh-token"
-        ));
-        assertTrue(setCookie.contains("Path=/api"));
-        assertTrue(setCookie.contains("HttpOnly"));
-        assertTrue(setCookie.contains("SameSite=Lax"));
-        assertTrue(setCookie.contains("Max-Age="));
-        assertFalse(setCookie.contains("Max-Age=0"));
-        assertFalse(setCookie.contains("Secure"));
+        assertThat(setCookie).startsWith(COOKIE_NAME + "=raw-refresh-token");
+        assertThat(setCookie).contains("Path=/api");
+        assertThat(setCookie).contains("HttpOnly");
+        assertThat(setCookie).contains("SameSite=Lax");
+        assertThat(setCookie).contains("Max-Age=");
+        assertThat(setCookie).doesNotContain("Max-Age=0");
+        assertThat(setCookie).doesNotContain("Secure");
     }
 
     @Test
@@ -91,22 +85,19 @@ class RefreshTokenCookieManagerTest {
         cookieManager.expire(response);
 
         String setCookie = response.getHeader(HttpHeaders.SET_COOKIE);
-        assertTrue(setCookie.startsWith(COOKIE_NAME + "="));
-        assertTrue(setCookie.contains("Path=/api"));
-        assertTrue(setCookie.contains("Max-Age=0"));
-        assertTrue(setCookie.contains("HttpOnly"));
-        assertTrue(setCookie.contains("SameSite=Lax"));
+        assertThat(setCookie).startsWith(COOKIE_NAME + "=");
+        assertThat(setCookie).contains("Path=/api");
+        assertThat(setCookie).contains("Max-Age=0");
+        assertThat(setCookie).contains("HttpOnly");
+        assertThat(setCookie).contains("SameSite=Lax");
     }
 
     @Test
     void 이미_만료된_Refresh_Token은_쿠키로_추가할_수_없다() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> cookieManager.add(
+        assertThatThrownBy(() -> cookieManager.add(
                 new MockHttpServletResponse(),
                 "raw-refresh-token",
                 Instant.now().minusSeconds(1)
-            )
-        );
+            )).isInstanceOf(IllegalArgumentException.class);
     }
 }

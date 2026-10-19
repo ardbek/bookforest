@@ -21,14 +21,44 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+/**
+ * 보안 필터 체인 설정
+ * 세션 없이 Authorization 헤더의 Access Token으로 인증하고, 로그인은 소셜 OAuth2로만 처리
+ * 경로별 허용 범위는 SecurityConfigTest가 검증
+ */
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private static final String[] INFRA_PATHS = {"/actuator/health", "/error"};
+    private static final String[] LOGIN_PATHS = {"/oauth2/**", "/login/oauth2/**", "/api/reissue", "/api/logout"};
+    private static final String[] PUBLIC_GET_PATHS = {
+        "/api/books/popular",
+        "/api/books/trending",
+        "/api/search-keywords/popular"
+    };
+    private static final String[] PUBLIC_PATHS = {
+        "/api/platform",
+        "/api/platform/**",
+        "/api/library",
+        "/api/library/**",
+        "/api/book",
+        "/api/book/**",
+        "/api/categories",
+        "/api/categories/**"
+    };
+    /** 프론트 운영 도메인과 로컬, 내부망 개발 서버 */
+    private static final List<String> ALLOWED_ORIGIN_PATTERNS = List.of(
+        "http://bookforest.cc",
+        "https://bookforest.cc",
+        "http://localhost:*",
+        "http://127.0.0.1:*",
+        "http://192.168.1.19:*"
+    );
+
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2AuthenticationSuccessHandler successHandler;
     private final OAuth2AuthenticationFailureHandler failureHandler;
-
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final JwtExceptionHandlerFilter jwtExceptionHandlerFilter;
@@ -38,73 +68,29 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(AbstractHttpConfigurer::disable) // CSRF 비활성화
-            .sessionManagement(session -> session.sessionCreationPolicy(
-                SessionCreationPolicy.STATELESS)) // 세션 사용 x
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                // health check, error
-                .requestMatchers(
-                    "/actuator/health",
-                    "/error"
-                ).permitAll()
-                // 소셜 로그인
-                .requestMatchers(
-                    "/oauth2/**",
-                    "/login/oauth2/**",
-                    "/api/reissue",
-                    "/api/logout"
-                ).permitAll()
-
-                .requestMatchers(
-                    HttpMethod.OPTIONS,
-                    "/**"
-                ).permitAll()
-
-                .requestMatchers(HttpMethod.GET, "/api/books/popular", "/api/books/trending").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/search-keywords/popular").permitAll()
-
-                .requestMatchers(
-                    "/api/platform",
-                    "/api/platform/**",
-                    "/api/library",
-                    "/api/library/**",
-                    "/api/book",
-                    "/api/book/**",
-                    "/api/categories",
-                    "/api/categories/**"
-                ).permitAll()
+                .requestMatchers(INFRA_PATHS).permitAll()
+                .requestMatchers(LOGIN_PATHS).permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
+                .requestMatchers(PUBLIC_PATHS).permitAll()
                 .anyRequest().authenticated()
             )
-
             .oauth2Login(oauth2 -> oauth2
-                .userInfoEndpoint(userInfo -> userInfo
-                    .userService(customOAuth2UserService)
-                )
+                .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
                 .successHandler(successHandler)
                 .failureHandler(failureHandler)
             )
-
-            // 인증 실패 시 로그인 페이지 redirect 대신 401 반환
             .exceptionHandling(exception -> exception
-                .authenticationEntryPoint(
-                    jwtAuthenticationEntryPoint
-                )
-                .accessDeniedHandler(
-                    jwtAccessDeniedHandler
-                )
+                .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                .accessDeniedHandler(jwtAccessDeniedHandler)
             )
-
-            .addFilterBefore(
-                jwtAuthenticationFilter,
-                UsernamePasswordAuthenticationFilter.class
-            )
-
-            .addFilterBefore(
-                jwtExceptionHandlerFilter,
-                JwtAuthenticationFilter.class
-            );
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(jwtExceptionHandlerFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
@@ -112,16 +98,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of(
-            "http://bookforest.cc",
-            "https://bookforest.cc",
-            "http://localhost:*",
-            "http://127.0.0.1:*",
-            "http://192.168.1.19:*"
-        ));
+        configuration.setAllowedOriginPatterns(ALLOWED_ORIGIN_PATTERNS);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
+        // 검색 요청 한도 초과 응답의 재시도 대기 시간을 프론트가 읽도록 노출
         configuration.setExposedHeaders(List.of("Retry-After"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

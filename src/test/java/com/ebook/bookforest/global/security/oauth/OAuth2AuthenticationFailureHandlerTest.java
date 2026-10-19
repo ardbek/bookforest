@@ -1,7 +1,7 @@
 package com.ebook.bookforest.global.security.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,11 +54,8 @@ class OAuth2AuthenticationFailureHandlerTest {
 
         MockHttpServletResponse response = execute(exception);
 
-        assertEquals(
-            CALLBACK_URL + "?error=" + errorCode,
-            response.getRedirectedUrl()
-        );
-        assertEquals(302, response.getStatus());
+        assertThat(response.getRedirectedUrl()).isEqualTo(CALLBACK_URL + "?error=" + errorCode);
+        assertThat(response.getStatus()).isEqualTo(302);
     }
 
     @Test
@@ -73,16 +70,9 @@ class OAuth2AuthenticationFailureHandlerTest {
 
         MockHttpServletResponse response = execute(exception);
 
-        assertEquals(
-            CALLBACK_URL + "?error=oauth2_error",
-            response.getRedirectedUrl()
-        );
-        assertFalse(
-            response.getRedirectedUrl().contains("provider_internal_error")
-        );
-        assertFalse(
-            response.getRedirectedUrl().contains("노출되면")
-        );
+        assertThat(response.getRedirectedUrl()).isEqualTo(CALLBACK_URL + "?error=oauth2_error");
+        assertThat(response.getRedirectedUrl()).doesNotContain("provider_internal_error");
+        assertThat(response.getRedirectedUrl()).doesNotContain("노출되면");
     }
 
     @Test
@@ -93,10 +83,7 @@ class OAuth2AuthenticationFailureHandlerTest {
             new BadCredentialsException("internal message")
         );
 
-        assertEquals(
-            CALLBACK_URL + "?error=oauth2_error",
-            response.getRedirectedUrl()
-        );
+        assertThat(response.getRedirectedUrl()).isEqualTo(CALLBACK_URL + "?error=oauth2_error");
     }
 
     private MockHttpServletResponse execute(
