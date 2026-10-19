@@ -1,8 +1,8 @@
 package com.ebook.bookforest.domain.user.service;
 
-import com.ebook.bookforest.domain.auth.repository.RefreshTokenStore;
-import com.ebook.bookforest.domain.user.event.SocialUnlinkTasksCreatedEvent;
 import com.ebook.bookforest.domain.user.entity.User;
+import com.ebook.bookforest.domain.user.event.SocialUnlinkTasksCreatedEvent;
+import com.ebook.bookforest.domain.user.event.UserWithdrawnEvent;
 import com.ebook.bookforest.domain.user.exception.UserErrorCode;
 import com.ebook.bookforest.domain.user.exception.UserException;
 import com.ebook.bookforest.domain.user.repository.FavoriteBookRepository;
@@ -20,13 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 회원 탈퇴 서비스
  * 소셜 연동 해제는 외부 API 호출이라 작업만 기록하고, 탈퇴 커밋 후 이벤트로 처리
+ * 로그인 세션은 인증 도메인이 탈퇴 이벤트를 받아 커밋 후 삭제
  */
 @Service
 @RequiredArgsConstructor
 public class UserWithdrawalService {
 
     private final UserRepository userRepository;
-    private final RefreshTokenStore refreshTokenStore;
     private final FavoriteBookRepository favoriteBookRepository;
     private final FavoriteLibraryRepository favoriteLibraryRepository;
     private final SocialAccountRepository socialAccountRepository;
@@ -36,7 +36,7 @@ public class UserWithdrawalService {
 
     /**
      * 회원 탈퇴
-     * 로그인 세션, 즐겨찾기, 소셜 계정을 삭제하고 사용자는 개인정보를 지운 비활성 상태로 보존
+     * 즐겨찾기, 소셜 계정을 삭제하고 사용자는 개인정보를 지운 비활성 상태로 보존
      *
      * @throws UserException 사용자가 없는 경우 USER_NOT_FOUND, 이미 탈퇴한 경우 USER_ALREADY_WITHDRAWN
      */
@@ -51,7 +51,6 @@ public class UserWithdrawalService {
         LocalDateTime now = LocalDateTime.now();
         List<Long> taskIds = taskCreationService.createTasks(userId, now);
 
-        refreshTokenStore.deleteAllByUserId(userId);
         favoriteBookRepository.deleteAllByUser_Id(userId);
         favoriteLibraryRepository.deleteAllByUser_Id(userId);
 
@@ -64,5 +63,6 @@ public class UserWithdrawalService {
         user.withdraw(now);
 
         eventPublisher.publishEvent(new SocialUnlinkTasksCreatedEvent(taskIds));
+        eventPublisher.publishEvent(new UserWithdrawnEvent(userId));
     }
 }

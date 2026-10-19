@@ -8,8 +8,8 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
-import com.ebook.bookforest.domain.auth.repository.RefreshTokenStore;
 import com.ebook.bookforest.domain.user.entity.User;
+import com.ebook.bookforest.domain.user.event.UserWithdrawnEvent;
 import com.ebook.bookforest.domain.user.exception.UserErrorCode;
 import com.ebook.bookforest.domain.user.exception.UserException;
 import com.ebook.bookforest.domain.user.repository.FavoriteBookRepository;
@@ -35,9 +35,6 @@ class UserWithdrawalServiceTest {
 
     @Mock
     private UserRepository userRepository;
-
-    @Mock
-    private RefreshTokenStore refreshTokenStore;
 
     @Mock
     private FavoriteBookRepository favoriteBookRepository;
@@ -71,7 +68,7 @@ class UserWithdrawalServiceTest {
     }
 
     @Test
-    void 회원_탈퇴시_세션과_연관_데이터를_삭제하고_개인정보를_익명화한다() {
+    void 회원_탈퇴시_연관_데이터를_삭제하고_개인정보를_익명화한_뒤_탈퇴_이벤트를_발행한다() {
         given(userRepository.findById(USER_ID))
             .willReturn(Optional.of(activeUser));
         given(taskCreationService.createTasks(
@@ -83,7 +80,6 @@ class UserWithdrawalServiceTest {
         userWithdrawalService.withdraw(USER_ID);
 
         LocalDateTime afterWithdrawal = LocalDateTime.now();
-        then(refreshTokenStore).should().deleteAllByUserId(USER_ID);
         then(favoriteBookRepository).should().deleteAllByUser_Id(USER_ID);
         then(favoriteLibraryRepository).should().deleteAllByUser_Id(USER_ID);
         then(credentialRepository).should().deleteAllBySocialAccount_User_Id(USER_ID);
@@ -95,6 +91,7 @@ class UserWithdrawalServiceTest {
                 com.ebook.bookforest.domain.user.event.SocialUnlinkTasksCreatedEvent.class
             )
         );
+        then(eventPublisher).should().publishEvent(new UserWithdrawnEvent(USER_ID));
         then(userRepository).should(never()).save(activeUser);
 
         InOrder deleteOrder = inOrder(credentialRepository, socialAccountRepository);
@@ -120,7 +117,6 @@ class UserWithdrawalServiceTest {
             .actual();
 
         assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
-        then(refreshTokenStore).shouldHaveNoInteractions();
         then(favoriteBookRepository).shouldHaveNoInteractions();
         then(favoriteLibraryRepository).shouldHaveNoInteractions();
         then(socialAccountRepository).shouldHaveNoInteractions();
@@ -141,7 +137,6 @@ class UserWithdrawalServiceTest {
             .actual();
 
         assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_ALREADY_WITHDRAWN);
-        then(refreshTokenStore).shouldHaveNoInteractions();
         then(favoriteBookRepository).shouldHaveNoInteractions();
         then(favoriteLibraryRepository).shouldHaveNoInteractions();
         then(socialAccountRepository).shouldHaveNoInteractions();
