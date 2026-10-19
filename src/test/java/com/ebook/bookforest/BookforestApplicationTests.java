@@ -1,10 +1,9 @@
 package com.ebook.bookforest;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+
+import com.ebook.bookforest.domain.book.dto.PlatformBookSearchRequest;
 
 import com.ebook.bookforest.domain.book.dto.BookSearchResponse;
 import com.ebook.bookforest.domain.book.dto.PlatformBookDetailResponse;
@@ -18,20 +17,23 @@ import com.ebook.bookforest.domain.book.repository.BookSearchCondition;
 import com.ebook.bookforest.domain.book.service.BookSearchService;
 import com.ebook.bookforest.domain.library.entity.Library;
 import com.ebook.bookforest.domain.platform.entity.Platform;
+import com.ebook.bookforest.support.MySqlTestContainerConfig;
 import jakarta.persistence.EntityManager;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest(properties = {
-    "spring.datasource.url=jdbc:h2:mem:bookforest;MODE=MySQL;DB_CLOSE_DELAY=-1",
-    "spring.datasource.username=sa",
-    "spring.datasource.password=",
-    "spring.jpa.hibernate.ddl-auto=create-drop"
-})
+/**
+ * 전체 애플리케이션 컨텍스트 로딩과 도서 조회 흐름 검증, 실제 MySQL 필요
+ */
+@SpringBootTest
+@Import(MySqlTestContainerConfig.class)
+@Tag("db")
 class BookforestApplicationTests {
 
     @Autowired
@@ -55,14 +57,14 @@ class BookforestApplicationTests {
             null
         );
 
-        assertDoesNotThrow(() -> {
+        assertThatCode(() -> {
             bookRepository.searchBooks(condition, PageRequest.of(0, 20));
             bookRepository.findLibraryPlatformSummaries(List.of(1L));
             bookRepository.findSubscriptionPlatformSummaries(List.of(1L));
             bookRepository.findSubscriptionPlatformLinks(List.of(1L));
             bookRepository.findLibraryHoldings(List.of(1L));
             bookRepository.findCategorySummaries(List.of(1L));
-        });
+        }).doesNotThrowAnyException();
     }
 
     @Test
@@ -105,12 +107,14 @@ class BookforestApplicationTests {
 
         BookSearchResponse response = bookSearchService.getBook(bookOrigin.getId());
 
-        assertEquals(platform.getId(), response.platformId());
-        assertEquals(1, response.libraryCount());
-        assertEquals(1, response.libraryPlatforms().size());
-        assertEquals(1, response.subscriptionPlatforms().size());
-        assertEquals("https://subscription.example/book-1", response.subscriptionPlatformLinks().get(0).bookUrl());
-        assertEquals("https://library.example/book-1", response.libraryPlatformHoldings().get(0).libraries().get(0).bookUrl());
+        assertThat(response.platformId()).isEqualTo(platform.getId());
+        assertThat(response.libraryCount()).isEqualTo(1);
+        assertThat(response.libraryPlatforms()).hasSize(1);
+        assertThat(response.subscriptionPlatforms()).hasSize(1);
+        assertThat(response.subscriptionPlatformLinks().get(0).bookUrl())
+            .isEqualTo("https://subscription.example/book-1");
+        assertThat(response.libraryPlatformHoldings().get(0).libraries().get(0).bookUrl())
+            .isEqualTo("https://library.example/book-1");
     }
 
     @Test
@@ -170,57 +174,44 @@ class BookforestApplicationTests {
         entityManager.flush();
         entityManager.clear();
 
-        PlatformBookSearchResponse grouped = bookSearchService.searchPlatformBooks(
-            "계약검색도서",
+        PlatformBookSearchResponse grouped = bookSearchService.searchPlatformBooks(new PlatformBookSearchRequest("계약검색도서",
             "TITLE",
             null,
             "ALL",
             null,
             null,
             0,
-            20,
-            null
-        );
-        assertEquals(3, grouped.totalElements());
-        assertEquals(2, grouped.groups().size());
-        assertEquals(grouped.totalElements(), grouped.groups().stream()
-            .mapToLong(PlatformBookSearchResponse.Group::totalElements)
-            .sum());
-        assertTrue(grouped.groups().stream()
-            .flatMap(group -> group.content().stream())
-            .noneMatch(PlatformBookSearchResponse.Item::favoriteYn));
+            20), null);
+        assertThat(grouped.totalElements()).isEqualTo(3);
+        assertThat(grouped.groups()).hasSize(2);
+        assertThat(grouped.groups().stream().mapToLong(PlatformBookSearchResponse.Group::totalElements).sum())
+            .isEqualTo(grouped.totalElements());
+        assertThat(grouped.groups().stream().flatMap(group -> group.content().stream()))
+            .noneMatch(PlatformBookSearchResponse.Item::favorite);
 
-        PlatformBookSearchResponse firstPage = bookSearchService.searchPlatformBooks(
-            "계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 0, 1, null
-        );
-        PlatformBookSearchResponse secondPage = bookSearchService.searchPlatformBooks(
-            "계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 1, 1, null
-        );
-        assertFalse(firstPage.groups().get(0).last());
-        assertTrue(secondPage.groups().get(0).last());
-        assertNotEquals(
-            firstPage.groups().get(0).content().get(0).sourceBookId(),
-            secondPage.groups().get(0).content().get(0).sourceBookId()
-        );
-        PlatformBookSearchResponse emptyPage = bookSearchService.searchPlatformBooks(
-            "계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 9, 1, null
-        );
-        assertEquals(2, emptyPage.totalElements());
-        assertTrue(emptyPage.groups().get(0).content().isEmpty());
+        PlatformBookSearchResponse firstPage = bookSearchService.searchPlatformBooks(new PlatformBookSearchRequest("계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 0, 1), null);
+        PlatformBookSearchResponse secondPage = bookSearchService.searchPlatformBooks(new PlatformBookSearchRequest("계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 1, 1), null);
+        assertThat(firstPage.groups().get(0).last()).isFalse();
+        assertThat(secondPage.groups().get(0).last()).isTrue();
+        assertThat(secondPage.groups().get(0).content().get(0).platformBookId())
+            .isNotEqualTo(firstPage.groups().get(0).content().get(0).platformBookId());
+        PlatformBookSearchResponse emptyPage = bookSearchService.searchPlatformBooks(new PlatformBookSearchRequest("계약검색도서", "TITLE", null, "LIBRARY", null, libraryPlatform.getId(), 9, 1), null);
+        assertThat(emptyPage.totalElements()).isEqualTo(2);
+        assertThat(emptyPage.groups().get(0).content()).isEmpty();
 
         PlatformBookDetailResponse detail = bookSearchService.getPlatformBook(
             libraryPlatform.getId(), "library-source", null
         );
-        assertEquals(2, detail.libraryCount());
-        assertEquals(1, detail.availableLibraryCount());
-        assertEquals(2, detail.libraries().size());
-        assertEquals("ISBN", detail.relatedBooks().get(0).matchType());
+        assertThat(detail.libraryCount()).isEqualTo(2);
+        assertThat(detail.availableLibraryCount()).isEqualTo(1);
+        assertThat(detail.libraries()).hasSize(2);
+        assertThat(detail.relatedBooks().get(0).matchType()).isEqualTo("ISBN");
 
         PlatformBookDetailResponse subscriptionDetail = bookSearchService.getPlatformBook(
             subscriptionPlatform.getId(), "subscription-source", null
         );
-        assertEquals("https://subscription.example/subscription-source", subscriptionDetail.bookUrl());
-        assertTrue(subscriptionDetail.libraries().isEmpty());
+        assertThat(subscriptionDetail.bookUrl()).isEqualTo("https://subscription.example/subscription-source");
+        assertThat(subscriptionDetail.libraries()).isEmpty();
     }
 
     private BookOrigin contractBook(Platform platform, String sourceBookId, String isbn13) {

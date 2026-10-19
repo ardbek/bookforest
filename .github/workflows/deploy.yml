@@ -48,10 +48,8 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Test
-        env:
-          MYSQL_HOST: 127.0.0.1
-          MYSQL_PORT: 3306
-        run: ./gradlew clean test --stacktrace --info
+        # test(DB 불필요)와 dbTest(Testcontainers MySQL, Docker 필요)를 모두 실행
+        run: ./gradlew clean check --stacktrace --info
 
       - name: Build JAR
         run: ./gradlew clean bootJar

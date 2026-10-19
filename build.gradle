@@ -49,13 +49,23 @@ dependencies {
     providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat-runtime'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+    // Testcontainers
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-mysql'
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
+// 모든 테스트 작업 공통 설정
+tasks.withType(Test).configureEach {
+    // 테스트가 .env나 CI 환경 변수의 실제 DB, Redis, 외부 API에 접속하지 않도록 차단, DB 테스트는 Testcontainers 사용
+    systemProperty 'MYSQL_HOST', 'testcontainers-only.invalid'
+    systemProperty 'REDIS_HOST', 'testcontainers-only.invalid'
+    systemProperty 'DATA4LIBRARY_API_KEY', ''
 
     testLogging {
         events "passed", "skipped", "failed"
@@ -64,4 +74,28 @@ tasks.named('test') {
         showCauses true
         showStackTraces true
     }
+}
+
+// DB가 필요 없는 테스트, Docker 없이 실행 가능
+tasks.named('test') {
+    useJUnitPlatform {
+        excludeTags 'db'
+    }
+}
+
+// 실제 MySQL(Testcontainers)이 필요한 테스트, Docker 필요
+def dbTest = tasks.register('dbTest', Test) {
+    description = 'Runs tests tagged "db" against a Testcontainers MySQL.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'db'
+    }
+    shouldRunAfter tasks.named('test')
+}
+
+// 전체 테스트와 검증
+tasks.named('check') {
+    dependsOn dbTest
 }
