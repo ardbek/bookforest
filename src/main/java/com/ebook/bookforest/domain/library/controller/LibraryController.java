@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 도서관 Controller
+ * 무료 전자도서관 조회 API
  */
 @RestController
 @RequestMapping("/api/library")
@@ -21,18 +21,16 @@ public class LibraryController {
     private final LibraryService libraryService;
 
     /**
-     * 도서관 목록 조회
-     * @param platformId
-     * @param searchKeyword
-     * @param pageable
-     * @return
+     * 도서관 검색(플랫폼별, 노출 도서관, 이름순)
+     *
+     * @param searchKeyword 도서관명 부분 일치 검색어, 없거나 공백이면 전체 도서관
      */
     @GetMapping
-    public LibraryPageResponse getLibraries(
+    public LibraryPageResponse searchLibraries(
         @RequestParam Long platformId,
         @RequestParam(required = false) String searchKeyword,
         @PageableDefault(size = 10) Pageable pageable
     ) {
-        return libraryService.getLibraries(platformId, searchKeyword, pageable);
+        return libraryService.searchLibraries(platformId, searchKeyword, pageable);
     }
 }

@@ -4,8 +4,7 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 
 /**
- * 도서관 응답
- * @param libraries
+ * 도서관 목록 페이지 응답
  */
 public record LibraryPageResponse(
     LibraryPage libraries
@@ -15,6 +14,7 @@ public record LibraryPageResponse(
         return new LibraryPageResponse(LibraryPage.from(page));
     }
 
+    /** 도서관 목록과 페이지 정보 */
     public record LibraryPage(
         List<LibraryResponse> content,
         long totalElements,

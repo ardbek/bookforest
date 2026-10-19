@@ -13,18 +13,21 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.util.Objects;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * 플랫폼에 속한 무료 전자도서관
+ * 수집기가 등록하고 이 애플리케이션은 조회만 담당
+ */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 @Entity
-@Table(name = "library",
+@Table(
+    name = "library",
     indexes = {
         @Index(
             name = "idx_library_platform_visible",
@@ -34,36 +37,47 @@ import lombok.NoArgsConstructor;
 )
 public class Library extends BaseTimeEntity {
 
-    /* 도서관 id */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "library_id")
     private Long id;
 
-    /* 플랫폼 */
+    /** 도서관 서비스를 제공하는 플랫폼 */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "platform_id", nullable = false)
     private Platform platform;
 
-    /* 도서관 코드 */
+    /** 플랫폼이 부여한 도서관 식별 코드 */
     @Column(name = "library_code", nullable = false, length = 100)
     private String libraryCode;
 
-    /* 도서관명*/
     @Column(name = "library_name", nullable = false, length = 200)
     private String libraryName;
 
-    /* 도서관 사이트 url */
+    /** 도서관 사이트 URL */
     @Column(name = "site_url", length = 200)
     private String siteUrl;
 
-    /* 도서관 설명 */
     @Lob
     @Column(name = "library_description")
     private String libraryDescription;
 
-    /* 노출 여부 */
+    /** 서비스 노출 여부 */
     @Column(name = "is_visible", nullable = false)
-    @Builder.Default
     private boolean visible = true;
+
+    @Builder
+    private Library(
+        Platform platform,
+        String libraryCode,
+        String libraryName,
+        String siteUrl,
+        String libraryDescription
+    ) {
+        this.platform = Objects.requireNonNull(platform, "플랫폼은 필수입니다.");
+        this.libraryCode = Objects.requireNonNull(libraryCode, "도서관 코드는 필수입니다.");
+        this.libraryName = Objects.requireNonNull(libraryName, "도서관명은 필수입니다.");
+        this.siteUrl = siteUrl;
+        this.libraryDescription = libraryDescription;
+    }
 }
