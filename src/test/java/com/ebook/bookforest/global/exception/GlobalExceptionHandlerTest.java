@@ -6,12 +6,18 @@ import static org.mockito.Mockito.mock;
 import com.ebook.bookforest.domain.auth.exception.AuthErrorCode;
 import com.ebook.bookforest.domain.auth.exception.AuthException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import tools.jackson.databind.json.JsonMapper;
 
 class GlobalExceptionHandlerTest {
 
@@ -83,5 +89,45 @@ class GlobalExceptionHandlerTest {
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(result.getBody()).isEqualTo(ErrorResponse.from(CommonErrorCode.INTERNAL_SERVER_ERROR));
         assertThat(result.getBody().message()).doesNotContain(sensitiveMessage);
+    }
+
+    @Test
+    @DisplayName("입력 검증 실패는 400 invalid_request와 필드별 사유 errors 배열로 응답")
+    void validationFailureReturnsFieldErrors() throws Exception {
+        // given
+        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(new Object(), "request");
+        bindingResult.addError(new FieldError("request", "keyword", "2자 이상 입력해야 합니다."));
+        MethodParameter parameter = new MethodParameter(
+            GlobalExceptionHandlerTest.class.getDeclaredMethod("validationTarget", String.class),
+            0
+        );
+
+        // when
+        ResponseEntity<ErrorResponse> result =
+            handler.handleValidationFailure(new MethodArgumentNotValidException(parameter, bindingResult));
+
+        // then
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(result.getBody().code()).isEqualTo("invalid_request");
+        assertThat(result.getBody().errors())
+            .containsExactly(new ErrorResponse.FieldErrorResponse("keyword", "2자 이상 입력해야 합니다."));
+        assertThat(JsonMapper.builder().build().writeValueAsString(result.getBody()))
+            .isEqualTo("{\"code\":\"invalid_request\",\"message\":\"요청 값이 올바르지 않습니다.\","
+                + "\"errors\":[{\"field\":\"keyword\",\"reason\":\"2자 이상 입력해야 합니다.\"}]}");
+    }
+
+    @Test
+    @DisplayName("검증 실패가 아닌 오류 응답 JSON에는 errors 필드 없음")
+    void errorResponseOmitsEmptyErrors() {
+        // when
+        String json = JsonMapper.builder().build()
+            .writeValueAsString(ErrorResponse.from(CommonErrorCode.INVALID_REQUEST));
+
+        // then
+        assertThat(json).isEqualTo("{\"code\":\"invalid_request\",\"message\":\"요청 값이 올바르지 않습니다.\"}");
+    }
+
+    @SuppressWarnings("unused")
+    private void validationTarget(String request) {
     }
 }

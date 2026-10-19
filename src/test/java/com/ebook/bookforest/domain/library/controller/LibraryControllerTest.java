@@ -101,4 +101,14 @@ class LibraryControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("invalid_request"));
     }
+
+    @Test
+    @DisplayName("필수 파라미터 platformId가 없으면 400 invalid_request, 검증 오류 목록 없음")
+    void searchLibrariesRejectsMissingPlatformId() throws Exception {
+        // when, then
+        mockMvc.perform(get("/api/library"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("invalid_request"))
+            .andExpect(jsonPath("$.errors").doesNotExist());
+    }
 }
