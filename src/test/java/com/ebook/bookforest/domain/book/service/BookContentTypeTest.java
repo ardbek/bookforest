@@ -1,13 +1,15 @@
 package com.ebook.bookforest.domain.book.service;
 
+import com.ebook.bookforest.domain.platform.service.PlatformService;
+import com.ebook.bookforest.domain.book.dto.BookSearchRequest;
+import com.ebook.bookforest.domain.book.dto.PlatformBookSearchRequest;
+import static com.ebook.bookforest.support.EntityIds.withId;
 import com.ebook.bookforest.domain.book.entity.BookOrigin;
 import com.ebook.bookforest.domain.book.dto.BookSearchResponse;
 import com.ebook.bookforest.domain.book.enums.ContentType;
 import com.ebook.bookforest.domain.book.repository.BookRepository;
 import com.ebook.bookforest.domain.platform.entity.Platform;
 import com.ebook.bookforest.domain.platform.repository.PlatformRepository;
-import com.ebook.bookforest.domain.user.repository.FavoriteBookRepository;
-import com.ebook.bookforest.domain.user.repository.FavoriteLibraryRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,47 +18,52 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class BookContentTypeTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void identifiesPlatformTypeWithoutAvailableHoldings(boolean subscription) {
-        var platform = Platform.builder().id(1L)
-            .supportsSubscription(subscription).supportsLibrary(!subscription).build();
-        var book = BookOrigin.builder().platform(platform).build();
+        var platform = withId(Platform.builder()
+            .supportsSubscription(subscription).supportsLibrary(!subscription).build(), 1L);
+        var book = BookOrigin.builder().platform(platform).platformBookId("source").titleRaw("도서").titleNorm("도서").build();
         var response = BookSearchResponse.from(book, null, List.of(), List.of(), false);
 
-        assertEquals(subscription ? "SUBSCRIPTION" : "LIBRARY", response.platformType());
-        assertEquals(0, response.libraryCount());
-        assertEquals(0, response.subscriptionPlatformCount());
+        assertThat(response.platformType()).isEqualTo(subscription ? "SUBSCRIPTION" : "LIBRARY");
+        assertThat(response.libraryCount()).isEqualTo(0);
+        assertThat(response.subscriptionPlatformCount()).isEqualTo(0);
     }
 
     @ParameterizedTest
     @EnumSource(ContentType.class)
     void preservesStoredContentTypeInSearchAndDetails(ContentType contentType) {
-        var platform = Platform.builder().id(1L).supportsLibrary(true).build();
-        var book = BookOrigin.builder().id(2L).platform(platform)
-            .platformBookId("source").titleRaw("도서").contentType(contentType).build();
+        var platform = withId(Platform.builder().supportsLibrary(true).build(), 1L);
+        var book = withId(BookOrigin.builder().platform(platform)
+            .platformBookId("source").titleRaw("도서").titleNorm("도서").contentType(contentType).build(), 2L);
         var books = mock(BookRepository.class);
         var platforms = mock(PlatformRepository.class);
-        var service = new BookSearchService(books, platforms,
-            mock(FavoriteBookRepository.class), mock(FavoriteLibraryRepository.class));
-        when(platforms.findAllByOrderByPlatformNameAsc()).thenReturn(List.of(platform));
-        when(platforms.findById(1L)).thenReturn(Optional.of(platform));
-        when(books.findById(2L)).thenReturn(Optional.of(book));
-        when(books.findByPlatform_IdAndPlatformBookIdAndActiveTrue(1L, "source"))
-            .thenReturn(Optional.of(book));
-        when(books.searchBooks(any(), any())).thenReturn(new PageImpl<>(List.of(book)));
+        var service = new BookSearchService(books, new PlatformService(platforms));
+        given(platforms.findAllByOrderByPlatformNameAsc()).willReturn(List.of(platform));
+        given(platforms.findById(1L)).willReturn(Optional.of(platform));
+        given(books.findById(2L)).willReturn(Optional.of(book));
+        given(books.findByPlatform_IdAndPlatformBookIdAndActiveTrue(1L, "source"))
+            .willReturn(Optional.of(book));
+        given(books.searchBooks(any(), any())).willReturn(new PageImpl<>(List.of(book)));
 
-        assertEquals(contentType, service.getBook(2L).contentType());
-        assertEquals(contentType, service.getPlatformBook(1L, "source", null).contentType());
-        assertEquals(contentType, service.searchPlatformBooks("도서", null, null, "ALL",
-            null, null, 0, 20, null).groups().get(0).content().get(0).contentType());
-        assertEquals(contentType, service.searchBooks("도서", null, null, null, null, null,
-            PageRequest.of(0, 20)).books().content().get(0).contentType());
+        assertThat(service.getBook(2L).contentType()).isEqualTo(contentType);
+        assertThat(service.getPlatformBook(1L, "source", null).contentType()).isEqualTo(contentType);
+        var platformSearch = service.searchPlatformBooks(
+            new PlatformBookSearchRequest("도서", null, null, "ALL", null, null, 0, 20),
+            null
+        );
+        assertThat(platformSearch.groups().get(0).content().get(0).contentType()).isEqualTo(contentType);
+        var bookSearch = service.searchBooks(
+            new BookSearchRequest("도서", null, null, null, null, null),
+            PageRequest.of(0, 20)
+        );
+        assertThat(bookSearch.books().content().get(0).contentType()).isEqualTo(contentType);
     }
 }

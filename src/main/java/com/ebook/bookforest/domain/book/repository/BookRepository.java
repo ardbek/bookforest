@@ -6,20 +6,27 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/**
+ * 원본 도서 Repository
+ */
 public interface BookRepository extends JpaRepository<BookOrigin, Long>, BookSearchRepository {
 
+    /** 원본 도서 조회(ISBN 목록, 활성 도서, ID순), 인기 도서 목록의 도서 매칭용 */
     @EntityGraph(attributePaths = "platform")
     List<BookOrigin> findAllByIsbn13RawInAndActiveTrueOrderByIdAsc(List<String> isbns);
 
+    /**
+     * 원본 도서 단건 조회(플랫폼별, 활성 도서)
+     * DB 유니크 키는 콘텐츠 종류까지 포함하므로 같은 식별값의 전자책과 오디오북이 함께 있으면 오류
+     */
     @EntityGraph(attributePaths = "platform")
-    Optional<BookOrigin> findByPlatform_IdAndPlatformBookIdAndActiveTrue(
-        Long platformId,
-        String platformBookId
-    );
+    Optional<BookOrigin> findByPlatform_IdAndPlatformBookIdAndActiveTrue(Long platformId, String platformBookId);
 
+    /** 원본 도서 조회(ISBN 일치, 활성 도서, 플랫폼순), 관련 도서 찾기용 */
     @EntityGraph(attributePaths = "platform")
     List<BookOrigin> findAllByIsbn13RawAndActiveTrueOrderByPlatform_IdAscIdAsc(String isbn13);
 
+    /** 원본 도서 조회(정규화 제목과 저자 일치, 활성 도서, 플랫폼순), 관련 도서 찾기용 */
     @EntityGraph(attributePaths = "platform")
     List<BookOrigin> findAllByTitleNormAndAuthorNormAndActiveTrueOrderByPlatform_IdAscIdAsc(
         String titleNorm,

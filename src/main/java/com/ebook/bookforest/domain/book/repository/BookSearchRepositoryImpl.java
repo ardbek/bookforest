@@ -3,18 +3,24 @@ package com.ebook.bookforest.domain.book.repository;
 import com.ebook.bookforest.domain.book.entity.BookOrigin;
 import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
 import com.ebook.bookforest.domain.book.enums.BookSearchType;
+import com.ebook.bookforest.domain.searchkeyword.service.SearchKeywordRules;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+/**
+ * 도서 검색 화면용 조회 구현
+ * 검색 조건 조합이 많아 JPQL을 동적으로 조립
+ */
 @Repository
 public class BookSearchRepositoryImpl implements BookSearchRepository {
 
@@ -280,6 +286,26 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
             .getResultList();
     }
 
+    @Override
+    public Set<Long> findFavoriteBookOriginIds(Long userId) {
+        return new LinkedHashSet<>(entityManager.createQuery(
+                "select fb.bookOrigin.id from FavoriteBook fb where fb.user.id = :userId",
+                Long.class
+            )
+            .setParameter("userId", userId)
+            .getResultList());
+    }
+
+    @Override
+    public Set<Long> findFavoriteLibraryIds(Long userId) {
+        return new LinkedHashSet<>(entityManager.createQuery(
+                "select fl.library.id from FavoriteLibrary fl where fl.user.id = :userId",
+                Long.class
+            )
+            .setParameter("userId", userId)
+            .getResultList());
+    }
+
     private QueryParts buildWhereClause(BookSearchCondition condition) {
         List<String> clauses = new ArrayList<>();
         Map<String, Object> parameters = new HashMap<>();
@@ -354,7 +380,7 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
             case AUTHOR -> clauses.add("lower(bo.authorNorm) like :keyword");
             case PUBLISHER -> clauses.add("lower(bo.publisherNorm) like :keyword");
             case ALL -> {
-                // ponytail: ngram cannot index one character; add dedicated parsing if fallback searches get hot.
+                // ngram 토큰(2글자)보다 짧은 한 글자 키워드와, 불리언 모드 구문을 깨는 큰따옴표가 든 키워드는 LIKE만 사용
                 String fullTextClause = keyword.codePointCount(0, keyword.length()) > 1
                     && !keyword.contains("\"")
                     ? "full_text_match(bo.titleNorm, bo.authorNorm, "
@@ -416,7 +442,7 @@ public class BookSearchRepositoryImpl implements BookSearchRepository {
         if (keyword == null || keyword.isBlank()) {
             return null;
         }
-        return com.ebook.bookforest.domain.searchkeyword.SearchKeywordRules.normalize(keyword);
+        return SearchKeywordRules.normalize(keyword);
     }
 
     private boolean isEmpty(List<Long> values) {

@@ -2,17 +2,10 @@ package com.ebook.bookforest.domain.book.dto;
 
 import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
 import com.ebook.bookforest.domain.book.repository.BookLibraryHolding;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 전자 도서관 보유 목록 응답
- * @param libraryId
- * @param libraryCode
- * @param libraryName
- * @param siteUrl
- * @param bookUrl
- * @param coverImgUrl
- * @param availabilityStatus
- * @param availableYn
+ * 도서 상세의 도서관별 보유 항목
  */
 public record BookLibraryHoldingResponse(
     Long libraryId,
@@ -22,7 +15,8 @@ public record BookLibraryHoldingResponse(
     String bookUrl,
     String coverImgUrl,
     AvailabilityStatus availabilityStatus,
-    boolean availableYn
+    /** 지금 이용 가능 여부, JSON 필드명은 API 계약에 따라 availableYn 유지 */
+    @JsonProperty("availableYn") boolean available
 ) {
 
     public static BookLibraryHoldingResponse from(BookLibraryHolding holding) {

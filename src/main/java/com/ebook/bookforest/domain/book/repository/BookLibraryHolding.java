@@ -3,18 +3,7 @@ package com.ebook.bookforest.domain.book.repository;
 import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
 
 /**
- * 전자도서관 보유 목록 조회 DTO
- * @param bookOriginId
- * @param platformId
- * @param platformCode
- * @param platformName
- * @param libraryId
- * @param libraryCode
- * @param libraryName
- * @param siteUrl
- * @param bookUrl
- * @param coverImgUrl
- * @param availabilityStatus
+ * 도서관 보유 현황 조회 결과, 도서관별 URL과 표지가 없으면 원본 도서 값
  */
 public record BookLibraryHolding(
     Long bookOriginId,

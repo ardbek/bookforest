@@ -2,6 +2,9 @@ package com.ebook.bookforest.domain.book.dto;
 
 import java.util.List;
 
+/**
+ * 도서 상세의 도서관 플랫폼별 보유 현황
+ */
 public record BookLibraryPlatformHoldingResponse(
     Long platformId,
     String platformCode,

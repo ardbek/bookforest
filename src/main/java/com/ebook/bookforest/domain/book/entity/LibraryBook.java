@@ -3,15 +3,31 @@ package com.ebook.bookforest.domain.book.entity;
 import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
 import com.ebook.bookforest.domain.library.entity.Library;
 import com.ebook.bookforest.global.entity.BaseTimeEntity;
-import jakarta.persistence.*;
-import lombok.*;
-
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
+import java.util.Objects;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+/**
+ * 무료 전자도서관의 원본 도서 보유 정보
+ * 수집기가 등록하고 갱신, 이 애플리케이션은 조회만 담당
+ */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 @Entity
 @Table(
     name = "library_book",
@@ -22,72 +38,63 @@ import java.time.LocalDateTime;
 )
 public class LibraryBook extends BaseTimeEntity {
 
-    /* 도서관 보유 도서 ID */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "library_book_id")
     private Long id;
 
-    /* 도서관 */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-        name = "library_id",
-        nullable = false
-    )
+    @JoinColumn(name = "library_id", nullable = false)
     private Library library;
 
-    /* 플랫폼 도서 */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-        name = "book_origin_id",
-        nullable = false
-    )
+    @JoinColumn(name = "book_origin_id", nullable = false)
     private BookOrigin bookOrigin;
 
-    /* 보유 상태 */
     @Enumerated(EnumType.STRING)
-    @Column(
-        name = "availability_status",
-        nullable = false,
-        length = 30
-    )
-    @Builder.Default
-    private AvailabilityStatus availabilityStatus = AvailabilityStatus.AVAILABLE;
+    @Column(name = "availability_status", nullable = false, length = 30)
+    private AvailabilityStatus availabilityStatus;
 
-    /* 도서관별 도서 접근 URL */
-    @Column(
-        name = "book_url",
-        length = 1000
-    )
+    /** 도서관별 도서 상세 페이지 URL, 없으면 원본 도서 URL 사용 */
+    @Column(name = "book_url", length = 1000)
     private String bookUrl;
 
-    /* 도서관별 표지 이미지 URL */
-    @Column(
-        name = "cover_img_url",
-        length = 1000
-    )
+    /** 도서관별 표지 URL, 없으면 원본 도서 표지 사용 */
+    @Column(name = "cover_img_url", length = 1000)
     private String coverImgUrl;
 
-    /* 최초 발견 시각 */
     @Column(name = "first_seen_at")
     private LocalDateTime firstSeenAt;
 
-    /* 마지막 발견 시각 */
     @Column(name = "last_seen_at")
     private LocalDateTime lastSeenAt;
 
-    /* 마지막 수집 run id */
+    /** 마지막으로 발견한 수집 실행 ID */
     @Column(name = "last_seen_run_id")
     private Long lastSeenRunId;
 
-    /* 제거 확인 시각 */
+    /** 도서관에서 사라진 것을 확인한 시각 */
     @Column(name = "removed_at")
     private LocalDateTime removedAt;
 
-    public void markAvailable(
-        LocalDateTime seenAt,
-        Long collectionRunId
+    /** 수집 시점 이용 상태 미지정 시 기본값 AVAILABLE */
+    @Builder
+    private LibraryBook(
+        Library library,
+        BookOrigin bookOrigin,
+        AvailabilityStatus availabilityStatus,
+        String bookUrl,
+        String coverImgUrl
     ) {
+        this.library = Objects.requireNonNull(library, "도서관은 필수입니다.");
+        this.bookOrigin = Objects.requireNonNull(bookOrigin, "원본 도서는 필수입니다.");
+        this.availabilityStatus = availabilityStatus == null ? AvailabilityStatus.AVAILABLE : availabilityStatus;
+        this.bookUrl = bookUrl;
+        this.coverImgUrl = coverImgUrl;
+    }
+
+    /** 수집에서 다시 발견한 보유 정보의 이용 가능 처리 */
+    public void markAvailable(LocalDateTime seenAt, Long collectionRunId) {
         this.availabilityStatus = AvailabilityStatus.AVAILABLE;
         this.lastSeenAt = seenAt;
         this.lastSeenRunId = collectionRunId;
@@ -98,9 +105,9 @@ public class LibraryBook extends BaseTimeEntity {
         }
     }
 
+    /** 수집에서 사라진 보유 정보의 제거 처리 */
     public void markRemoved(LocalDateTime removedAt) {
         this.availabilityStatus = AvailabilityStatus.REMOVED;
         this.removedAt = removedAt;
     }
-
 }

@@ -2,12 +2,16 @@ package com.ebook.bookforest.domain.book.enums;
 
 import java.util.Locale;
 
+/**
+ * 도서 검색 대상 필드
+ */
 public enum BookSearchType {
     ALL,
     TITLE,
     AUTHOR,
     PUBLISHER;
 
+    /** 검색 대상 해석(영문, 한글 이름 허용), 값이 없거나 알 수 없으면 ALL */
     public static BookSearchType from(String rawValue) {
         if (rawValue == null || rawValue.isBlank()) {
             return ALL;
