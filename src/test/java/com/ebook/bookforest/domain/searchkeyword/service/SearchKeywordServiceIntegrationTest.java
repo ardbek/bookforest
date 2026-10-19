@@ -1,9 +1,11 @@
-package com.ebook.bookforest.domain.searchkeyword;
+package com.ebook.bookforest.domain.searchkeyword.service;
 
-import com.ebook.bookforest.global.security.jwt.model.JwtPrincipal;
-import com.ebook.bookforest.domain.user.enums.UserRole;
+import com.ebook.bookforest.domain.searchkeyword.config.SearchKeywordProperties;
+import com.ebook.bookforest.domain.searchkeyword.config.SearchKeywordWebConfig;
+import com.ebook.bookforest.domain.searchkeyword.controller.PopularSearchKeywordController;
+import com.ebook.bookforest.domain.searchkeyword.dto.PopularSearchKeywordResponse;
+import com.ebook.bookforest.support.RedisTestContainer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import java.net.ServerSocket;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -12,26 +14,38 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.filter.ForwardedHeaderFilter;
 import tools.jackson.databind.json.JsonMapper;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 
-class SearchKeywordTest {
-    static Process server;
+/**
+ * 인기 검색어 집계와 검색 API 요청 한도 동작 검증
+ * Lua 스크립트와 키 만료를 실제로 확인하기 위해 Redis 컨테이너 사용
+ */
+@Tag("db")
+class SearchKeywordServiceIntegrationTest {
     static LettuceConnectionFactory connection;
     static StringRedisTemplate redis;
     SearchKeywordProperties config;
@@ -41,37 +55,19 @@ class SearchKeywordTest {
     final Clock clock = Clock.fixed(now, ZoneOffset.UTC);
 
     @BeforeAll
-    static void startRedis() throws Exception {
-        String binary = System.getenv().getOrDefault("REDIS_SERVER", "redis-server");
-        int port;
-        try (var socket = new ServerSocket(0)) { port = socket.getLocalPort(); }
-        try {
-            server = new ProcessBuilder(binary, "--bind", "127.0.0.1", "--port", String.valueOf(port),
-                "--save", "", "--appendonly", "no")
-                .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
-        } catch (java.io.IOException missing) {
-            Assumptions.abort("Install redis-server or set REDIS_SERVER to run isolated Redis integration tests");
-        }
-        connection = new LettuceConnectionFactory("127.0.0.1", port);
-        connection.afterPropertiesSet();
-        connection.start();
+    static void startRedis() {
+        connection = RedisTestContainer.connectionFactory();
         redis = new StringRedisTemplate(connection);
-        for (int i = 0; i < 30; i++) {
-            try (var client = connection.getConnection()) { if ("PONG".equals(client.ping())) return; }
-            catch (RuntimeException starting) { Thread.sleep(50); }
-        }
-        fail("Isolated test Redis did not start");
     }
 
     @AfterAll
-    static void stopRedis() throws Exception {
+    static void stopRedis() {
         if (connection != null) connection.destroy();
-        if (server != null) { server.destroy(); server.waitFor(); }
     }
 
     @BeforeEach
     void reset() {
-        // Only the disposable Redis process above is cleared.
+        // 테스트 전용 Redis 컨테이너만 비움
         try (var client = connection.getConnection()) { client.serverCommands().flushDb(); }
         config = new SearchKeywordProperties();
         config.setActorSecret("test-only-secret");
@@ -91,18 +87,6 @@ class SearchKeywordTest {
     String event() { return UUID.randomUUID().toString(); }
 
     @Test
-    void normalizesWithoutTruncatingAndDoesNotBlockIsbn() {
-        assertEquals("harry potter", SearchKeywordRules.normalize("  Ｈarry\t\n Potter\u0000  "));
-        assertFalse(SearchKeywordRules.valid("가"));
-        assertFalse(SearchKeywordRules.valid("!?!"));
-        assertFalse(SearchKeywordRules.valid("가".repeat(101)));
-        assertTrue(SearchKeywordRules.visible("9781234567890", Set.of()));
-        assertFalse(SearchKeywordRules.visible("전화 010-1234-5678", Set.of()));
-        assertFalse(SearchKeywordRules.visible("a@example.com", Set.of()));
-        assertTrue(SearchKeywordRules.visible("금지된 사랑", Set.of("사랑")));
-    }
-
-    @Test
     void concurrentDuplicatesAndAlternatingWordsRespectCooldown() throws Exception {
         String id = event();
         var pool = Executors.newFixedThreadPool(8);
@@ -115,15 +99,15 @@ class SearchKeywordTest {
         String rejected = event();
         record("one", rejected, "해리 포터", 1);
         record("one", event(), "한강", 1);
-        assertEquals(1d, redis.opsForZSet().score(bucket(0), "해리 포터"));
-        assertEquals(1d, redis.opsForZSet().score(bucket(0), "한강"));
+        assertThat(redis.opsForZSet().score(bucket(0), "해리 포터")).isEqualTo(1d);
+        assertThat(redis.opsForZSet().score(bucket(0), "한강")).isEqualTo(1d);
         // Simulate cooldown expiry; the rejected event must still remain processed.
         for (String key : redis.keys(SearchKeywordService.PREFIX + "cooldown:*")) redis.delete(key);
         record("one", rejected, "해리 포터", 1);
-        assertEquals(1d, redis.opsForZSet().score(bucket(0), "해리 포터"));
+        assertThat(redis.opsForZSet().score(bucket(0), "해리 포터")).isEqualTo(1d);
         record("one", event(), "해리 포터", 1);
-        assertEquals(2d, redis.opsForZSet().score(bucket(0), "해리 포터"));
-        assertTrue(redis.getExpire(SearchKeywordService.PREFIX + "event:one:" + id) > 590);
+        assertThat(redis.opsForZSet().score(bucket(0), "해리 포터")).isEqualTo(2d);
+        assertThat(redis.getExpire(SearchKeywordService.PREFIX + "event:one:" + id)).isGreaterThan(590);
     }
 
     @Test
@@ -134,7 +118,7 @@ class SearchKeywordTest {
         record("one", null, "한강", 1);
         record("one", "bad", "한강", 1);
         service.record("one", event(), "한강", 1, 1);
-        assertFalse(redis.hasKey(bucket(0)));
+        assertThat(redis.hasKey(bucket(0))).isFalse();
     }
 
     @Test
@@ -146,25 +130,25 @@ class SearchKeywordTest {
         record("one", event(), "한강", 1);
         String rejected = event();
         record("one", rejected, "소설", 1);
-        assertEquals(1d, redis.opsForZSet().score(bucket(0), "한강"));
-        assertNull(redis.opsForZSet().score(bucket(0), "소설"));
+        assertThat(redis.opsForZSet().score(bucket(0), "한강")).isEqualTo(1d);
+        assertThat(redis.opsForZSet().score(bucket(0), "소설")).isNull();
         config.setActorMinuteLimit(100);
         record("one", rejected, "소설", 1);
-        assertNull(redis.opsForZSet().score(bucket(0), "소설"));
+        assertThat(redis.opsForZSet().score(bucket(0), "소설")).isNull();
         config.setActorHourLimit(3);
         record("one", event(), "책제목", 1);
-        assertNull(redis.opsForZSet().score(bucket(0), "책제목"));
+        assertThat(redis.opsForZSet().score(bucket(0), "책제목")).isNull();
     }
 
     @Test
     void apiLimitsCountBothActorsAndSharedIps() {
         config.setApiActorMinuteLimit(2);
         config.setApiIpMinuteLimit(3);
-        assertEquals(0, service.retryAfter("one", "127.0.0.1"));
-        assertEquals(0, service.retryAfter("one", "127.0.0.1"));
-        assertTrue(service.retryAfter("one", "127.0.0.1") > 0);
-        assertTrue(service.retryAfter("two", "127.0.0.1") > 0);
-        assertEquals(0, service.retryAfter("two", "127.0.0.2"));
+        assertThat(service.getRetryAfterSeconds("one", "127.0.0.1")).isEqualTo(0);
+        assertThat(service.getRetryAfterSeconds("one", "127.0.0.1")).isEqualTo(0);
+        assertThat(service.getRetryAfterSeconds("one", "127.0.0.1")).isGreaterThan(0);
+        assertThat(service.getRetryAfterSeconds("two", "127.0.0.1")).isGreaterThan(0);
+        assertThat(service.getRetryAfterSeconds("two", "127.0.0.2")).isEqualTo(0);
     }
 
     @Test
@@ -181,23 +165,24 @@ class SearchKeywordTest {
         redis.opsForZSet().add(bucket(0), "한강", 2);
         redis.opsForZSet().add(bucket(24), "과거도서", 500);
         service.refresh();
-        assertEquals(List.of(new SearchKeywordService.Item(1, "해리 포터")), service.get(10).items());
-        assertTrue(redis.getExpire(SearchKeywordService.SNAPSHOT) > 170);
+        assertThat(service.getPopularKeywords(10).items())
+            .isEqualTo(List.of(new PopularSearchKeywordResponse.Item(1, "해리 포터")));
+        assertThat(redis.getExpire(SearchKeywordService.SNAPSHOT)).isGreaterThan(170);
         config.setBlockedKeywords(List.of("해리 포터"));
-        assertTrue(service.get(10).items().isEmpty());
+        assertThat(service.getPopularKeywords(10).items()).isEmpty();
     }
 
     @Test
     void emptySnapshotReplacesOldValueAndMissingSnapshotIsEmpty() {
         redis.opsForZSet().add(bucket(0), "한강", 3);
         service.refresh();
-        assertEquals(1, service.get(10).items().size());
+        assertThat(service.getPopularKeywords(10).items()).hasSize(1);
         redis.delete(bucket(0));
         service.refresh();
-        assertNotNull(service.get(10).generatedAt());
-        assertTrue(service.get(10).items().isEmpty());
+        assertThat(service.getPopularKeywords(10).generatedAt()).isNotNull();
+        assertThat(service.getPopularKeywords(10).items()).isEmpty();
         redis.delete(SearchKeywordService.SNAPSHOT);
-        assertNull(service.get(10).generatedAt());
+        assertThat(service.getPopularKeywords(10).generatedAt()).isNull();
     }
 
     @Test
@@ -206,64 +191,35 @@ class SearchKeywordTest {
         String lock = SearchKeywordService.SNAPSHOT + ":lock";
         redis.opsForValue().set(lock, "new-owner", Duration.ofSeconds(55));
         redis.opsForValue().set(SearchKeywordService.SNAPSHOT, "old-value");
-        assertEquals(0L, redis.execute(publish, List.of(lock, SearchKeywordService.SNAPSHOT, SearchKeywordService.SNAPSHOT + ":tmp:test"),
-            "expired-owner", "bad-value", "180"));
-        assertEquals("old-value", redis.opsForValue().get(SearchKeywordService.SNAPSHOT));
-        assertEquals("new-owner", redis.opsForValue().get(lock));
+        List<String> keys = List.of(lock, SearchKeywordService.SNAPSHOT, SearchKeywordService.SNAPSHOT + ":tmp:test");
+        assertThat(redis.execute(publish, keys, "expired-owner", "bad-value", "180")).isEqualTo(0L);
+        assertThat(redis.opsForValue().get(SearchKeywordService.SNAPSHOT)).isEqualTo("old-value");
+        assertThat(redis.opsForValue().get(lock)).isEqualTo("new-owner");
     }
 
     @Test
     void redisFailuresDoNotFailSearchOrKeywordReads() {
         StringRedisTemplate broken = mock(StringRedisTemplate.class);
-        when(broken.opsForValue()).thenThrow(new org.springframework.dao.QueryTimeoutException("test"));
-        doThrow(new org.springframework.dao.QueryTimeoutException("test")).when(broken)
+        given(broken.opsForValue()).willThrow(new org.springframework.dao.QueryTimeoutException("test"));
+        willThrow(new org.springframework.dao.QueryTimeoutException("test")).given(broken)
             .execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), anyList(), org.mockito.ArgumentMatchers.<Object[]>any());
         var unavailable = new SearchKeywordService(config, broken, mapper, new SimpleMeterRegistry(), clock);
-        assertDoesNotThrow(() -> unavailable.record("one", event(), "한강", 0, 1));
-        assertEquals(0, unavailable.retryAfter("one", "127.0.0.1"));
-        assertTrue(unavailable.get(10).items().isEmpty());
-        assertDoesNotThrow(unavailable::refresh);
-    }
-
-    @Test
-    void actorCookiesAndAuthenticatedUsersAreResolvedServerSide() {
-        var web = new SearchKeywordWebConfig(service, config);
-        var request = new MockHttpServletRequest();
-        var response = new MockHttpServletResponse();
-        String anonymous = web.resolveActor(request, response);
-        assertFalse(anonymous.contains("anonymous"));
-        assertTrue(response.getHeader("Set-Cookie").contains("HttpOnly"));
-        assertTrue(response.getHeader("Set-Cookie").contains("Secure"));
-        String cookieValue = response.getHeader("Set-Cookie").split(";", 2)[0].split("=", 2)[1];
-        request.setCookies(new jakarta.servlet.http.Cookie("bf_anon_id", cookieValue));
-        assertEquals(anonymous, web.resolveActor(request, new MockHttpServletResponse()));
-        var principal = new JwtPrincipal(42L, UserRole.values()[0]);
-        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
-        assertEquals(service.actorHash("user:42"), web.resolveActor(request, response));
-    }
-
-    @Test
-    void forwardedHeadersOnlyAffectLimitsForConfiguredProxyPeers() throws Exception {
-        var web = new SearchKeywordWebConfig(service, config);
-        var request = new MockHttpServletRequest("GET", "/api/book/search/platforms");
-        request.setRemoteAddr("10.0.0.1");
-        request.addHeader("X-Forwarded-For", "1.2.3.4, 10.0.0.2");
-        assertEquals("10.0.0.1", web.clientIp(request));
-        config.setTrustedProxies(List.of("10.0.0.1", "10.0.0.2"));
-        new ForwardedHeaderFilter().doFilter(request, new MockHttpServletResponse(), (wrapped, response) ->
-            assertEquals("1.2.3.4", web.clientIp((jakarta.servlet.http.HttpServletRequest) wrapped)));
+        assertThatCode(() -> unavailable.record("one", event(), "한강", 0, 1)).doesNotThrowAnyException();
+        assertThat(unavailable.getRetryAfterSeconds("one", "127.0.0.1")).isEqualTo(0);
+        assertThat(unavailable.getPopularKeywords(10).items()).isEmpty();
+        assertThatCode(unavailable::refresh).doesNotThrowAnyException();
     }
 
     @Test
     void httpSearchAndPopularEndpointsShareRealRedisAndRespectMetadata() throws Exception {
         var books = mock(com.ebook.bookforest.domain.book.service.BookSearchService.class);
-        when(books.searchPlatformBooks(anyString(), any(), any(), anyString(), any(), any(), anyInt(), anyInt(), any()))
-            .thenReturn(new com.ebook.bookforest.domain.book.dto.PlatformBookSearchResponse(1, List.of()));
+        given(books.searchPlatformBooks(any(), any()))
+            .willReturn(new com.ebook.bookforest.domain.book.dto.PlatformBookSearchResponse(1, List.of()));
         var web = new SearchKeywordWebConfig(service, config);
         // Capture the interceptor registration through the same configuration used by MVC.
         var capturingRegistry = mock(org.springframework.web.servlet.config.annotation.InterceptorRegistry.class);
         var captured = org.mockito.ArgumentCaptor.forClass(org.springframework.web.servlet.HandlerInterceptor.class);
-        when(capturingRegistry.addInterceptor(captured.capture())).thenAnswer(invocation ->
+        given(capturingRegistry.addInterceptor(captured.capture())).willAnswer(invocation ->
             new org.springframework.web.servlet.config.annotation.InterceptorRegistration(invocation.getArgument(0)));
         web.addInterceptors(capturingRegistry);
         var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
@@ -282,7 +238,7 @@ class SearchKeywordTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url)
             .param("keyword", "한강").param("platformType", "ALL").param("page", "0").param("size", "20").cookie(cookie))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
-        assertEquals(1d, redis.opsForZSet().score(bucket(0), "한강"));
+        assertThat(redis.opsForZSet().score(bucket(0), "한강")).isEqualTo(1d);
         record("second-user", event(), "한강", 1);
         record("third-user", event(), "한강", 1);
         service.refresh();
@@ -300,7 +256,7 @@ class SearchKeywordTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url)
             .param("keyword", "가").param("platformType", "ALL").param("page", "0").param("size", "20"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
-        verify(books, times(3)).searchPlatformBooks(anyString(), any(), any(), anyString(), any(), any(), anyInt(), anyInt(), any());
+        then(books).should(times(3)).searchPlatformBooks(any(), any());
     }
 
     @Test
@@ -316,8 +272,8 @@ class SearchKeywordTest {
             isolated.refresh();
             var instance = isolated.getBean(SearchKeywordService.class);
             instance.record("context-user", event(), "테스트", 0, 1);
-            assertEquals(1d, redis.opsForZSet().score(bucket(0), "테스트"));
-            assertEquals(oldTimeout, connection.getClientConfiguration().getCommandTimeout());
+            assertThat(redis.opsForZSet().score(bucket(0), "테스트")).isEqualTo(1d);
+            assertThat(connection.getClientConfiguration().getCommandTimeout()).isEqualTo(oldTimeout);
         }
     }
 }
