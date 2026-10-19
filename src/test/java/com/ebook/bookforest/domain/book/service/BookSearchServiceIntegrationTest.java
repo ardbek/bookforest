@@ -12,6 +12,7 @@ import com.ebook.bookforest.domain.book.dto.BookSearchResponse;
 import com.ebook.bookforest.domain.book.dto.PlatformBookDetailResponse;
 import com.ebook.bookforest.domain.book.dto.PlatformBookSearchResponse;
 import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
+import com.ebook.bookforest.domain.book.enums.ContentType;
 import com.ebook.bookforest.domain.platform.service.PlatformService;
 import com.ebook.bookforest.global.exception.BusinessException;
 import com.ebook.bookforest.support.MySqlDataJpaTest;
@@ -160,6 +161,24 @@ class BookSearchServiceIntegrationTest {
         assertThat(detail.coverImgUrl()).isEqualTo("https://millie.example/m-1.jpg");
         assertThat(detail.libraries()).isEmpty();
         assertThat(detail.libraryCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("같은 플랫폼 도서 ID의 전자책과 오디오북이 함께 있으면 전자책 상세 반환")
+    void getPlatformBookPrefersEbookWhenIdIsShared() {
+        // given
+        jdbcTemplate.update("""
+            insert into book_origin (book_origin_id, platform_id, platform_book_id, content_type, title_raw,
+                title_norm, is_active)
+            values (300, ?, 'k-1', 'AUDIOBOOK', '자바의 정석 오디오북', '자바의정석오디오북', true)
+            """, KYOBO);
+
+        // when
+        PlatformBookDetailResponse detail = bookSearchService.getPlatformBook(KYOBO, "k-1", null);
+
+        // then
+        assertThat(detail.contentType()).isEqualTo(ContentType.EBOOK);
+        assertThat(detail.title()).isEqualTo("자바의 정석");
     }
 
     @Test

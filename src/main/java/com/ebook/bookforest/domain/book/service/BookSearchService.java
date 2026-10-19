@@ -13,6 +13,7 @@ import com.ebook.bookforest.domain.book.dto.PlatformBookSearchResponse;
 import com.ebook.bookforest.domain.book.entity.BookOrigin;
 import com.ebook.bookforest.domain.book.enums.AvailabilityStatus;
 import com.ebook.bookforest.domain.book.enums.BookSearchType;
+import com.ebook.bookforest.domain.book.enums.ContentType;
 import com.ebook.bookforest.domain.book.enums.PlatformType;
 import com.ebook.bookforest.domain.book.exception.BookErrorCode;
 import com.ebook.bookforest.domain.book.exception.BookException;
@@ -26,14 +27,17 @@ import com.ebook.bookforest.domain.platform.dto.PlatformInfo;
 import com.ebook.bookforest.domain.platform.entity.Platform;
 import com.ebook.bookforest.domain.platform.service.PlatformService;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -49,6 +53,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>플랫폼별 검색: 플랫폼마다 그룹을 나눠 검색, 도서관 보유 수와 즐겨찾기 표시 포함</li>
  * </ul>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BookSearchService {
@@ -183,8 +188,9 @@ public class BookSearchService {
     public PlatformBookDetailResponse getPlatformBook(Long platformId, String platformBookId, Long userId) {
         platformService.findPlatformInfo(platformId)
             .orElseThrow(() -> new BookException(BookErrorCode.PLATFORM_NOT_FOUND));
-        BookOrigin book = bookRepository.findByPlatform_IdAndPlatformBookIdAndActiveTrue(platformId, platformBookId)
-            .orElseThrow(() -> new BookException(BookErrorCode.PLATFORM_BOOK_NOT_FOUND));
+        BookOrigin book = selectPlatformBook(
+            bookRepository.findAllByPlatform_IdAndPlatformBookIdAndActiveTrue(platformId, platformBookId)
+        ).orElseThrow(() -> new BookException(BookErrorCode.PLATFORM_BOOK_NOT_FOUND));
         PlatformType platformType = platformTypeOf(book.getPlatform());
         if (platformType == null) {
             throw new BookException(BookErrorCode.PLATFORM_BOOK_NOT_FOUND);
@@ -225,6 +231,19 @@ public class BookSearchService {
         );
     }
 
+
+    // 상세 요청에 콘텐츠 종류가 없어 같은 ID의 전자책과 오디오북이 함께 있으면 전자책 우선, 같은 종류끼리는 먼저 수집된 도서
+    private Optional<BookOrigin> selectPlatformBook(List<BookOrigin> books) {
+        if (books.size() > 1) {
+            log.warn(
+                "같은 플랫폼 도서 ID의 원본 도서가 여러 건: bookOriginIds={}",
+                books.stream().map(BookOrigin::getId).toList()
+            );
+        }
+        return books.stream()
+            .min(Comparator.comparing((BookOrigin book) -> book.getContentType() != ContentType.EBOOK)
+                .thenComparing(BookOrigin::getId));
+    }
 
     private void validateSearchRequest(PlatformBookSearchRequest request) {
         boolean invalid = request.keyword() == null

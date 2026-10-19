@@ -49,8 +49,8 @@ class BookContentTypeTest {
         given(platforms.findAllByOrderByPlatformNameAsc()).willReturn(List.of(platform));
         given(platforms.findById(1L)).willReturn(Optional.of(platform));
         given(books.findById(2L)).willReturn(Optional.of(book));
-        given(books.findByPlatform_IdAndPlatformBookIdAndActiveTrue(1L, "source"))
-            .willReturn(Optional.of(book));
+        given(books.findAllByPlatform_IdAndPlatformBookIdAndActiveTrue(1L, "source"))
+            .willReturn(List.of(book));
         given(books.searchBooks(any(), any())).willReturn(new PageImpl<>(List.of(book)));
 
         assertThat(service.getBook(2L).contentType()).isEqualTo(contentType);
