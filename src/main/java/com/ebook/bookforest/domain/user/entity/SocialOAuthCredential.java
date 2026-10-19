@@ -13,16 +13,17 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import java.util.Objects;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * 소셜 연동 해제에 쓰는 소셜 플랫폼 토큰, 소셜 계정당 최대 한 건
+ * 토큰 원문은 저장하지 않고 암호문만 보관
+ */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 @Entity
 @Table(
     name = "social_oauth_credential",
@@ -40,10 +41,6 @@ public class SocialOAuthCredential extends BaseTimeEntity {
     @Column(name = "social_oauth_credential_id")
     private Long id;
 
-    /**
-     * 토큰을 소유한 소셜 계정
-     * SocialAccount 하나당 Credential도 최대 하나만 존재
-     */
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
         name = "social_account_id",
@@ -54,23 +51,25 @@ public class SocialOAuthCredential extends BaseTimeEntity {
     )
     private SocialAccount socialAccount;
 
-    /**
-     * 암호화된 외부 플랫폼 Access Token
-     */
+    /** 암호화한 소셜 플랫폼 Access Token */
     @Column(name = "access_token_ciphertext", length = 4096)
     private String accessTokenCiphertext;
 
-    /**
-     * 암호화된 외부 플랫폼 Refresh Token
-     */
+    /** 암호화한 소셜 플랫폼 Refresh Token */
     @Column(name = "refresh_token_ciphertext", length = 4096)
     private String refreshTokenCiphertext;
 
-    /**
-     * Access Token 만료 시각
-     */
     @Column(name = "access_token_expires_at")
     private Instant accessTokenExpiresAt;
+
+    private SocialOAuthCredential(SocialAccount socialAccount) {
+        this.socialAccount = Objects.requireNonNull(socialAccount, "소셜 계정은 필수입니다.");
+    }
+
+    /** 소셜 플랫폼 토큰 정보 생성, 토큰은 갱신 메서드로 저장 */
+    public static SocialOAuthCredential create(SocialAccount socialAccount) {
+        return new SocialOAuthCredential(socialAccount);
+    }
 
     public void updateAccessToken(
         String accessTokenCiphertext,

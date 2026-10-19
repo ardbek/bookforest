@@ -1,19 +1,19 @@
 package com.ebook.bookforest.domain.user.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import com.ebook.bookforest.domain.user.entity.User;
+import static com.ebook.bookforest.support.EntityIds.withId;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
+import com.ebook.bookforest.domain.user.crypto.OAuthTokenCipher;
 import com.ebook.bookforest.domain.user.entity.SocialAccount;
 import com.ebook.bookforest.domain.user.entity.SocialOAuthCredential;
 import com.ebook.bookforest.domain.user.enums.SocialProvider;
 import com.ebook.bookforest.domain.user.repository.SocialAccountRepository;
 import com.ebook.bookforest.domain.user.repository.SocialOAuthCredentialRepository;
-import com.ebook.bookforest.global.security.crypto.OAuthTokenCipher;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,11 +58,11 @@ class SocialOAuthCredentialServiceTest {
 
     @BeforeEach
     void setUp() {
-        socialAccount = SocialAccount.builder()
-            .id(SOCIAL_ACCOUNT_ID)
+        socialAccount = withId(SocialAccount.builder()
+            .user(User.create(null, null, null))
             .socialProvider(SocialProvider.NAVER)
             .providerSubject(PROVIDER_SUBJECT)
-            .build();
+            .build(), SOCIAL_ACCOUNT_ID);
 
         accessToken = new OAuth2AccessToken(
             OAuth2AccessToken.TokenType.BEARER,
@@ -79,16 +79,16 @@ class SocialOAuthCredentialServiceTest {
 
     @Test
     void 네이버_최초_로그인이면_토큰을_암호화하여_Credential을_저장한다() {
-        when(socialAccountRepository.findBySocialProviderAndProviderSubject(
+        given(socialAccountRepository.findBySocialProviderAndProviderSubject(
             SocialProvider.NAVER,
             PROVIDER_SUBJECT
-        )).thenReturn(Optional.of(socialAccount));
-        when(credentialRepository.findBySocialAccount_Id(SOCIAL_ACCOUNT_ID))
-            .thenReturn(Optional.empty());
-        when(tokenCipher.encrypt(ACCESS_TOKEN_VALUE))
-            .thenReturn(ENCRYPTED_ACCESS_TOKEN);
-        when(tokenCipher.encrypt(REFRESH_TOKEN_VALUE))
-            .thenReturn(ENCRYPTED_REFRESH_TOKEN);
+        )).willReturn(Optional.of(socialAccount));
+        given(credentialRepository.findBySocialAccount_Id(SOCIAL_ACCOUNT_ID))
+            .willReturn(Optional.empty());
+        given(tokenCipher.encrypt(ACCESS_TOKEN_VALUE))
+            .willReturn(ENCRYPTED_ACCESS_TOKEN);
+        given(tokenCipher.encrypt(REFRESH_TOKEN_VALUE))
+            .willReturn(ENCRYPTED_REFRESH_TOKEN);
 
         credentialService.saveOrUpdate(
             SocialProvider.NAVER,
@@ -99,41 +99,31 @@ class SocialOAuthCredentialServiceTest {
 
         ArgumentCaptor<SocialOAuthCredential> captor =
             ArgumentCaptor.forClass(SocialOAuthCredential.class);
-        verify(credentialRepository).save(captor.capture());
+        then(credentialRepository).should().save(captor.capture());
 
         SocialOAuthCredential savedCredential = captor.getValue();
-        assertSame(socialAccount, savedCredential.getSocialAccount());
-        assertEquals(
-            ENCRYPTED_ACCESS_TOKEN,
-            savedCredential.getAccessTokenCiphertext()
-        );
-        assertEquals(
-            ENCRYPTED_REFRESH_TOKEN,
-            savedCredential.getRefreshTokenCiphertext()
-        );
-        assertEquals(EXPIRES_AT, savedCredential.getAccessTokenExpiresAt());
+        assertThat(savedCredential.getSocialAccount()).isSameAs(socialAccount);
+        assertThat(savedCredential.getAccessTokenCiphertext()).isEqualTo(ENCRYPTED_ACCESS_TOKEN);
+        assertThat(savedCredential.getRefreshTokenCiphertext()).isEqualTo(ENCRYPTED_REFRESH_TOKEN);
+        assertThat(savedCredential.getAccessTokenExpiresAt()).isEqualTo(EXPIRES_AT);
     }
 
     @Test
     void 네이버_재로그인이면_기존_Credential의_토큰을_갱신한다() {
-        SocialOAuthCredential existingCredential =
-            SocialOAuthCredential.builder()
-                .id(20L)
-                .socialAccount(socialAccount)
-                .accessTokenCiphertext("v1:old-access")
-                .refreshTokenCiphertext("v1:old-refresh")
-                .build();
+        SocialOAuthCredential existingCredential = withId(SocialOAuthCredential.create(socialAccount), 20L);
+        existingCredential.updateAccessToken("v1:old-access", null);
+        existingCredential.updateRefreshToken("v1:old-refresh");
 
-        when(socialAccountRepository.findBySocialProviderAndProviderSubject(
+        given(socialAccountRepository.findBySocialProviderAndProviderSubject(
             SocialProvider.NAVER,
             PROVIDER_SUBJECT
-        )).thenReturn(Optional.of(socialAccount));
-        when(credentialRepository.findBySocialAccount_Id(SOCIAL_ACCOUNT_ID))
-            .thenReturn(Optional.of(existingCredential));
-        when(tokenCipher.encrypt(ACCESS_TOKEN_VALUE))
-            .thenReturn(ENCRYPTED_ACCESS_TOKEN);
-        when(tokenCipher.encrypt(REFRESH_TOKEN_VALUE))
-            .thenReturn(ENCRYPTED_REFRESH_TOKEN);
+        )).willReturn(Optional.of(socialAccount));
+        given(credentialRepository.findBySocialAccount_Id(SOCIAL_ACCOUNT_ID))
+            .willReturn(Optional.of(existingCredential));
+        given(tokenCipher.encrypt(ACCESS_TOKEN_VALUE))
+            .willReturn(ENCRYPTED_ACCESS_TOKEN);
+        given(tokenCipher.encrypt(REFRESH_TOKEN_VALUE))
+            .willReturn(ENCRYPTED_REFRESH_TOKEN);
 
         credentialService.saveOrUpdate(
             SocialProvider.NAVER,
@@ -142,36 +132,26 @@ class SocialOAuthCredentialServiceTest {
             refreshToken
         );
 
-        assertEquals(
-            ENCRYPTED_ACCESS_TOKEN,
-            existingCredential.getAccessTokenCiphertext()
-        );
-        assertEquals(
-            ENCRYPTED_REFRESH_TOKEN,
-            existingCredential.getRefreshTokenCiphertext()
-        );
-        assertEquals(EXPIRES_AT, existingCredential.getAccessTokenExpiresAt());
-        verify(credentialRepository).save(existingCredential);
+        assertThat(existingCredential.getAccessTokenCiphertext()).isEqualTo(ENCRYPTED_ACCESS_TOKEN);
+        assertThat(existingCredential.getRefreshTokenCiphertext()).isEqualTo(ENCRYPTED_REFRESH_TOKEN);
+        assertThat(existingCredential.getAccessTokenExpiresAt()).isEqualTo(EXPIRES_AT);
+        then(credentialRepository).should().save(existingCredential);
     }
 
     @Test
     void 새_Refresh_Token이_없으면_기존_Refresh_Token을_유지한다() {
-        SocialOAuthCredential existingCredential =
-            SocialOAuthCredential.builder()
-                .id(20L)
-                .socialAccount(socialAccount)
-                .accessTokenCiphertext("v1:old-access")
-                .refreshTokenCiphertext("v1:existing-refresh")
-                .build();
+        SocialOAuthCredential existingCredential = withId(SocialOAuthCredential.create(socialAccount), 20L);
+        existingCredential.updateAccessToken("v1:old-access", null);
+        existingCredential.updateRefreshToken("v1:existing-refresh");
 
-        when(socialAccountRepository.findBySocialProviderAndProviderSubject(
+        given(socialAccountRepository.findBySocialProviderAndProviderSubject(
             SocialProvider.NAVER,
             PROVIDER_SUBJECT
-        )).thenReturn(Optional.of(socialAccount));
-        when(credentialRepository.findBySocialAccount_Id(SOCIAL_ACCOUNT_ID))
-            .thenReturn(Optional.of(existingCredential));
-        when(tokenCipher.encrypt(ACCESS_TOKEN_VALUE))
-            .thenReturn(ENCRYPTED_ACCESS_TOKEN);
+        )).willReturn(Optional.of(socialAccount));
+        given(credentialRepository.findBySocialAccount_Id(SOCIAL_ACCOUNT_ID))
+            .willReturn(Optional.of(existingCredential));
+        given(tokenCipher.encrypt(ACCESS_TOKEN_VALUE))
+            .willReturn(ENCRYPTED_ACCESS_TOKEN);
 
         credentialService.saveOrUpdate(
             SocialProvider.NAVER,
@@ -180,16 +160,10 @@ class SocialOAuthCredentialServiceTest {
             null
         );
 
-        assertEquals(
-            ENCRYPTED_ACCESS_TOKEN,
-            existingCredential.getAccessTokenCiphertext()
-        );
-        assertEquals(
-            "v1:existing-refresh",
-            existingCredential.getRefreshTokenCiphertext()
-        );
-        verify(tokenCipher, never()).encrypt(REFRESH_TOKEN_VALUE);
-        verify(credentialRepository).save(existingCredential);
+        assertThat(existingCredential.getAccessTokenCiphertext()).isEqualTo(ENCRYPTED_ACCESS_TOKEN);
+        assertThat(existingCredential.getRefreshTokenCiphertext()).isEqualTo("v1:existing-refresh");
+        then(tokenCipher).should(never()).encrypt(REFRESH_TOKEN_VALUE);
+        then(credentialRepository).should().save(existingCredential);
     }
 
     @Test
@@ -201,67 +175,52 @@ class SocialOAuthCredentialServiceTest {
             refreshToken
         );
 
-        verifyNoInteractions(
-            socialAccountRepository,
-            credentialRepository,
-            tokenCipher
-        );
+        then(socialAccountRepository).shouldHaveNoInteractions();
+        then(credentialRepository).shouldHaveNoInteractions();
+        then(tokenCipher).shouldHaveNoInteractions();
     }
 
     @Test
     void 네이버_SocialAccount가_없으면_Credential을_저장할_수_없다() {
-        when(socialAccountRepository.findBySocialProviderAndProviderSubject(
+        given(socialAccountRepository.findBySocialProviderAndProviderSubject(
             SocialProvider.NAVER,
             PROVIDER_SUBJECT
-        )).thenReturn(Optional.empty());
+        )).willReturn(Optional.empty());
 
-        assertThrows(
-            IllegalStateException.class,
-            () -> credentialService.saveOrUpdate(
+        assertThatThrownBy(() -> credentialService.saveOrUpdate(
                 SocialProvider.NAVER,
                 PROVIDER_SUBJECT,
                 accessToken,
                 refreshToken
-            )
-        );
+            )).isInstanceOf(IllegalStateException.class);
 
-        verifyNoInteractions(credentialRepository, tokenCipher);
+        then(credentialRepository).shouldHaveNoInteractions();
+        then(tokenCipher).shouldHaveNoInteractions();
     }
 
     @Test
     void 필수_요청값이_없으면_Credential을_저장할_수_없다() {
-        assertThrows(
-            NullPointerException.class,
-            () -> credentialService.saveOrUpdate(
+        assertThatThrownBy(() -> credentialService.saveOrUpdate(
                 null,
                 PROVIDER_SUBJECT,
                 accessToken,
                 refreshToken
-            )
-        );
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> credentialService.saveOrUpdate(
+            )).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> credentialService.saveOrUpdate(
                 SocialProvider.NAVER,
                 " ",
                 accessToken,
                 refreshToken
-            )
-        );
-        assertThrows(
-            NullPointerException.class,
-            () -> credentialService.saveOrUpdate(
+            )).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> credentialService.saveOrUpdate(
                 SocialProvider.NAVER,
                 PROVIDER_SUBJECT,
                 null,
                 refreshToken
-            )
-        );
+            )).isInstanceOf(NullPointerException.class);
 
-        verifyNoInteractions(
-            socialAccountRepository,
-            credentialRepository,
-            tokenCipher
-        );
+        then(socialAccountRepository).shouldHaveNoInteractions();
+        then(credentialRepository).shouldHaveNoInteractions();
+        then(tokenCipher).shouldHaveNoInteractions();
     }
 }

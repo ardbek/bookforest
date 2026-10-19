@@ -1,222 +1,174 @@
 package com.ebook.bookforest.domain.auth.controller;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.ebook.bookforest.domain.auth.dto.AuthUserResponse;
-import com.ebook.bookforest.domain.auth.dto.ReissueResponse;
 import com.ebook.bookforest.domain.auth.dto.ReissueResult;
 import com.ebook.bookforest.domain.auth.exception.AuthErrorCode;
 import com.ebook.bookforest.domain.auth.exception.AuthException;
 import com.ebook.bookforest.domain.auth.service.AuthService;
-import com.ebook.bookforest.global.security.oauth.OAuth2Properties;
-import com.ebook.bookforest.global.security.oauth.RefreshTokenCookieManager;
+import com.ebook.bookforest.domain.searchkeyword.config.SearchKeywordWebConfig;
+import com.ebook.bookforest.global.security.jwt.JwtAuthenticationFilter;
+import com.ebook.bookforest.global.security.jwt.JwtExceptionHandlerFilter;
+import com.ebook.bookforest.support.RefreshTokenCookieTestConfig;
+import jakarta.servlet.http.Cookie;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
+/**
+ * 토큰 재발급, 로그아웃 API 계약 검증
+ * 실제 쿠키 관리자를 써서 응답 JSON과 Refresh Token 쿠키 헤더를 함께 확인
+ */
+@WebMvcTest(
+    controllers = AuthController.class,
+    excludeFilters = @ComponentScan.Filter(
+        type = FilterType.ASSIGNABLE_TYPE,
+        classes = {
+            JwtAuthenticationFilter.class,
+            JwtExceptionHandlerFilter.class,
+            SearchKeywordWebConfig.class
+        }
+    )
+)
+@AutoConfigureMockMvc(addFilters = false)
+@Import(RefreshTokenCookieTestConfig.class)
 class AuthControllerTest {
 
-    private static final String FRONT_ORIGIN =
-        "http://localhost:3000";
-    private static final String RAW_REFRESH_TOKEN =
-        "raw-refresh-token";
-    private static final String NEW_REFRESH_TOKEN =
-        "new-refresh-token";
-    private static final Instant NEW_REFRESH_EXPIRES_AT =
-        Instant.parse("2099-01-01T00:00:00Z");
+    private static final String FRONT_ORIGIN = "http://localhost:3000";
+    private static final String RAW_REFRESH_TOKEN = "raw-refresh-token";
+    private static final String NEW_REFRESH_TOKEN = "new-refresh-token";
+    /** 운영 Refresh Token 유효 기간과 같은 14일, 쿠키 Max-Age가 int 범위를 넘지 않는 값 */
+    private static final Instant NEW_REFRESH_EXPIRES_AT = Instant.now().plus(Duration.ofDays(14));
 
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
     private AuthService authService;
-    private RefreshTokenCookieManager cookieManager;
-    private AuthController controller;
-
-    @BeforeEach
-    void setUp() {
-        authService = mock(AuthService.class);
-        cookieManager = mock(RefreshTokenCookieManager.class);
-
-        OAuth2Properties properties = new OAuth2Properties(
-            FRONT_ORIGIN + "/auth/callback",
-            "refresh_token",
-            false,
-            "Lax"
-        );
-
-        controller = new AuthController(
-            authService,
-            properties,
-            cookieManager
-        );
-    }
 
     @Test
-    void reissue에_성공하면_Access_Token_응답과_새_Refresh_Token_쿠키를_반환한다() {
-        MockHttpServletRequest request = validOriginRequest();
-        MockHttpServletResponse response =
-            new MockHttpServletResponse();
-        when(cookieManager.read(request))
-            .thenReturn(Optional.of(RAW_REFRESH_TOKEN));
-
-        AuthUserResponse user = new AuthUserResponse(
-            1L,
-            "책벌레",
-            "https://example.com/profile.png"
-        );
-        ReissueResult serviceResult = new ReissueResult(
+    @DisplayName("재발급에 성공하면 Access Token 응답 JSON과 새 Refresh Token 쿠키 반환")
+    void reissueReturnsAccessTokenAndNewRefreshTokenCookie() throws Exception {
+        // given
+        given(authService.reissue(RAW_REFRESH_TOKEN)).willReturn(new ReissueResult(
             "new-access-token",
             1800L,
             NEW_REFRESH_TOKEN,
             NEW_REFRESH_EXPIRES_AT,
-            user
-        );
-        when(authService.reissue(RAW_REFRESH_TOKEN))
-            .thenReturn(serviceResult);
+            new AuthUserResponse(1L, "책벌레", "https://example.com/profile.png")
+        ));
 
-        ResponseEntity<ReissueResponse> result =
-            controller.reissue(request, response);
-
-        assertEquals(HttpStatus.OK, result.getStatusCode());
-        assertEquals(
-            new ReissueResponse(
-                "new-access-token",
-                1800L,
-                user
-            ),
-            result.getBody()
-        );
-        verify(cookieManager).add(
-            response,
-            NEW_REFRESH_TOKEN,
-            NEW_REFRESH_EXPIRES_AT
-        );
+        // when, then
+        mockMvc.perform(post("/api/reissue")
+                .header(HttpHeaders.ORIGIN, FRONT_ORIGIN)
+                .cookie(refreshTokenCookie()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", aMapWithSize(3)))
+            .andExpect(jsonPath("$.accessToken").value("new-access-token"))
+            .andExpect(jsonPath("$.expiresIn").value(1800))
+            .andExpect(jsonPath("$.user", aMapWithSize(3)))
+            .andExpect(jsonPath("$.user.userId").value(1))
+            .andExpect(jsonPath("$.user.displayName").value("책벌레"))
+            .andExpect(jsonPath("$.user.profileImageUrl").value("https://example.com/profile.png"))
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                containsString("refresh_token=" + NEW_REFRESH_TOKEN),
+                containsString("Path=/api"),
+                containsString("HttpOnly"),
+                containsString("SameSite=Lax")
+            )));
     }
 
     @Test
-    void Refresh_Token_쿠키가_없으면_MISSING_REFRESH_TOKEN_오류가_발생한다() {
-        MockHttpServletRequest request = validOriginRequest();
-        when(cookieManager.read(request))
-            .thenReturn(Optional.empty());
+    @DisplayName("Refresh Token 쿠키가 없으면 missing_refresh_token 오류, 재발급 미호출")
+    void reissueRejectsMissingCookie() throws Exception {
+        // when, then
+        mockMvc.perform(post("/api/reissue").header(HttpHeaders.ORIGIN, FRONT_ORIGIN))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("missing_refresh_token"));
 
-        AuthException exception = assertThrows(
-            AuthException.class,
-            () -> controller.reissue(
-                request,
-                new MockHttpServletResponse()
-            )
-        );
-
-        assertEquals(
-            AuthErrorCode.MISSING_REFRESH_TOKEN,
-            exception.getErrorCode()
-        );
-        verifyNoInteractions(authService);
+        then(authService).should(never()).reissue(any());
     }
 
     @Test
-    void reissue가_실패하면_Refresh_Token_쿠키를_만료시킨다() {
-        MockHttpServletRequest request = validOriginRequest();
-        MockHttpServletResponse response =
-            new MockHttpServletResponse();
-        when(cookieManager.read(request))
-            .thenReturn(Optional.of(RAW_REFRESH_TOKEN));
-        when(authService.reissue(RAW_REFRESH_TOKEN))
-            .thenThrow(new AuthException(
-                AuthErrorCode.INVALID_REFRESH_TOKEN
-            ));
+    @DisplayName("재발급이 인증 오류로 실패하면 Refresh Token 쿠키를 만료시키고 오류 응답")
+    void reissueExpiresCookieWhenServiceFails() throws Exception {
+        // given
+        given(authService.reissue(RAW_REFRESH_TOKEN))
+            .willThrow(new AuthException(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED));
 
-        AuthException exception = assertThrows(
-            AuthException.class,
-            () -> controller.reissue(request, response)
-        );
-
-        assertEquals(
-            AuthErrorCode.INVALID_REFRESH_TOKEN,
-            exception.getErrorCode()
-        );
-        verify(cookieManager).expire(response);
+        // when, then
+        mockMvc.perform(post("/api/reissue")
+                .header(HttpHeaders.ORIGIN, FRONT_ORIGIN)
+                .cookie(refreshTokenCookie()))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("refresh_token_reuse_detected"))
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                containsString("refresh_token=;"),
+                containsString("Max-Age=0")
+            )));
     }
 
     @Test
-    void 허용되지_않은_Origin의_reissue는_서비스를_호출하지_않는다() {
-        MockHttpServletRequest request =
-            new MockHttpServletRequest();
-        request.addHeader(
-            HttpHeaders.ORIGIN,
-            "https://evil.example"
-        );
+    @DisplayName("허용되지 않은 Origin의 재발급 요청은 invalid_origin 오류, 재발급 미호출")
+    void reissueRejectsInvalidOrigin() throws Exception {
+        // when, then
+        mockMvc.perform(post("/api/reissue")
+                .header(HttpHeaders.ORIGIN, "https://evil.example")
+                .cookie(refreshTokenCookie()))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("invalid_origin"));
 
-        AuthException exception = assertThrows(
-            AuthException.class,
-            () -> controller.reissue(
-                request,
-                new MockHttpServletResponse()
-            )
-        );
-
-        assertEquals(
-            AuthErrorCode.INVALID_ORIGIN,
-            exception.getErrorCode()
-        );
-        verifyNoInteractions(authService, cookieManager);
+        then(authService).should(never()).reissue(any());
     }
 
     @Test
-    void logout은_Redis_세션을_삭제하고_쿠키를_만료시킨다() {
-        MockHttpServletRequest request = validOriginRequest();
-        MockHttpServletResponse response =
-            new MockHttpServletResponse();
-        when(cookieManager.read(request))
-            .thenReturn(Optional.of(RAW_REFRESH_TOKEN));
+    @DisplayName("로그아웃은 Refresh Token 세션을 삭제하고 쿠키를 만료시킨 뒤 본문 없이 204 응답")
+    void logoutDeletesSessionAndExpiresCookie() throws Exception {
+        // when, then
+        mockMvc.perform(post("/api/logout")
+                .header(HttpHeaders.ORIGIN, FRONT_ORIGIN)
+                .cookie(refreshTokenCookie()))
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""))
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")));
 
-        ResponseEntity<Void> result =
-            controller.logout(request, response);
-
-        assertEquals(
-            HttpStatus.NO_CONTENT,
-            result.getStatusCode()
-        );
-        verify(authService).logout(RAW_REFRESH_TOKEN);
-        verify(cookieManager).expire(response);
+        then(authService).should().logout(RAW_REFRESH_TOKEN);
     }
 
     @Test
-    void Refresh_Token이_없는_logout도_성공하고_쿠키를_만료시킨다() {
-        MockHttpServletRequest request = validOriginRequest();
-        MockHttpServletResponse response =
-            new MockHttpServletResponse();
-        when(cookieManager.read(request))
-            .thenReturn(Optional.empty());
+    @DisplayName("Refresh Token 쿠키 없는 로그아웃도 쿠키를 만료시키고 204 응답, 세션 삭제 미호출")
+    void logoutWithoutCookieStillSucceeds() throws Exception {
+        // when, then
+        mockMvc.perform(post("/api/logout").header(HttpHeaders.ORIGIN, FRONT_ORIGIN))
+            .andExpect(status().isNoContent())
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")));
 
-        ResponseEntity<Void> result =
-            controller.logout(request, response);
-
-        assertEquals(
-            HttpStatus.NO_CONTENT,
-            result.getStatusCode()
-        );
-        verify(authService, never()).logout(anyString());
-        verify(cookieManager).expire(response);
+        then(authService).should(never()).logout(any());
     }
 
-    private MockHttpServletRequest validOriginRequest() {
-        MockHttpServletRequest request =
-            new MockHttpServletRequest();
-        request.addHeader(
-            HttpHeaders.ORIGIN,
-            FRONT_ORIGIN
-        );
-        return request;
+    private Cookie refreshTokenCookie() {
+        return new Cookie("refresh_token", RAW_REFRESH_TOKEN);
     }
 }

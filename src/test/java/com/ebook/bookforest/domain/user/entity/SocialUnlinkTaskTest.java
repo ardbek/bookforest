@@ -1,10 +1,8 @@
 package com.ebook.bookforest.domain.user.entity;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ebook.bookforest.domain.user.enums.ProviderTokenType;
 import com.ebook.bookforest.domain.user.enums.SocialProvider;
@@ -21,10 +19,10 @@ class SocialUnlinkTaskTest {
     void 생성된_작업은_즉시_처리할_수_있다() {
         SocialUnlinkTask task = createTask();
 
-        assertEquals(SocialUnlinkStatus.PENDING, task.getStatus());
-        assertEquals(NOW, task.getNextRetryAt());
-        assertTrue(task.isReady(NOW));
-        assertFalse(task.isReady(NOW.minusNanos(1)));
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.PENDING);
+        assertThat(task.getNextRetryAt()).isEqualTo(NOW);
+        assertThat(task.isReady(NOW)).isTrue();
+        assertThat(task.isReady(NOW.minusNanos(1))).isFalse();
     }
 
     @Test
@@ -34,11 +32,11 @@ class SocialUnlinkTaskTest {
 
         task.markSucceeded(NOW.plusMinutes(1));
 
-        assertEquals(SocialUnlinkStatus.SUCCEEDED, task.getStatus());
-        assertEquals(NOW.plusMinutes(1), task.getCompletedAt());
-        assertNull(task.getNextRetryAt());
-        assertNull(task.getProviderTokenCiphertext());
-        assertNull(task.getProviderTokenType());
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.SUCCEEDED);
+        assertThat(task.getCompletedAt()).isEqualTo(NOW.plusMinutes(1));
+        assertThat(task.getNextRetryAt()).isNull();
+        assertThat(task.getProviderTokenCiphertext()).isNull();
+        assertThat(task.getProviderTokenType()).isNull();
     }
 
     @Test
@@ -48,10 +46,10 @@ class SocialUnlinkTaskTest {
 
         task.scheduleRetry("TEMPORARY", NOW.plusMinutes(1));
 
-        assertEquals(SocialUnlinkStatus.RETRY_WAITING, task.getStatus());
-        assertEquals(1, task.getRetryCount());
-        assertEquals("TEMPORARY", task.getLastErrorCode());
-        assertTrue(task.isReady(NOW.plusMinutes(1)));
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.RETRY_WAITING);
+        assertThat(task.getRetryCount()).isEqualTo(1);
+        assertThat(task.getLastErrorCode()).isEqualTo("TEMPORARY");
+        assertThat(task.isReady(NOW.plusMinutes(1))).isTrue();
     }
 
     @Test
@@ -59,14 +57,11 @@ class SocialUnlinkTaskTest {
         SocialUnlinkTask task = createTask();
         task.startProcessing();
 
-        assertThrows(
-            NullPointerException.class,
-            () -> task.scheduleRetry("TEMPORARY", null)
-        );
+        assertThatThrownBy(() -> task.scheduleRetry("TEMPORARY", null)).isInstanceOf(NullPointerException.class);
 
-        assertEquals(SocialUnlinkStatus.PROCESSING, task.getStatus());
-        assertEquals(0, task.getRetryCount());
-        assertNull(task.getLastErrorCode());
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.PROCESSING);
+        assertThat(task.getRetryCount()).isEqualTo(0);
+        assertThat(task.getLastErrorCode()).isNull();
     }
 
     @Test
@@ -75,7 +70,7 @@ class SocialUnlinkTaskTest {
         task.startProcessing();
         task.markSucceeded(NOW.plusMinutes(1));
 
-        assertThrows(IllegalStateException.class, task::startProcessing);
+        assertThatThrownBy(task::startProcessing).isInstanceOf(IllegalStateException.class);
     }
 
     private SocialUnlinkTask createTask() {

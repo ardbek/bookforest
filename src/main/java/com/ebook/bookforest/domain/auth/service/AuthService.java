@@ -5,12 +5,12 @@ import com.ebook.bookforest.domain.auth.dto.LoginSession;
 import com.ebook.bookforest.domain.auth.dto.ReissueResult;
 import com.ebook.bookforest.domain.auth.exception.AuthErrorCode;
 import com.ebook.bookforest.domain.auth.exception.AuthException;
-import com.ebook.bookforest.domain.auth.model.RefreshTokenSession;
 import com.ebook.bookforest.domain.auth.model.RefreshTokenRotationCommand;
 import com.ebook.bookforest.domain.auth.model.RefreshTokenRotationStatus;
+import com.ebook.bookforest.domain.auth.model.RefreshTokenSession;
 import com.ebook.bookforest.domain.auth.repository.RefreshTokenStore;
-import com.ebook.bookforest.domain.user.entity.User;
-import com.ebook.bookforest.domain.user.repository.UserRepository;
+import com.ebook.bookforest.domain.user.dto.UserInfo;
+import com.ebook.bookforest.domain.user.service.UserService;
 import com.ebook.bookforest.global.security.jwt.RefreshTokenHasher;
 import com.ebook.bookforest.global.security.jwt.TokenProvider;
 import com.ebook.bookforest.global.security.jwt.model.IssuedAccessToken;
@@ -22,86 +22,67 @@ import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+/**
+ * 로그인 세션 발급, Refresh Token 재발급과 로그아웃 서비스
+ * Refresh Token 원문은 저장하지 않고 해시만 저장소에 보관
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
+    /** 여러 탭이 동시에 재발급할 때 직전 Refresh Token을 허용하는 유예 시간 */
     private static final Duration REFRESH_TOKEN_GRACE_PERIOD = Duration.ofSeconds(20);
 
     private final TokenProvider tokenProvider;
     private final RefreshTokenHasher refreshTokenHasher;
     private final RefreshTokenStore refreshTokenStore;
-    private final UserRepository userRepository;
+    private final UserService userService;
 
     /**
-     * 최초 로그인 세션 발급
-     * @param userId
-     * @return
+     * 로그인 세션 발급(소셜 로그인 성공 직후)
+     *
+     * @throws AuthException 활성 사용자가 아닌 경우 USER_NOT_ACTIVE
      */
     public LoginSession createLoginSession(Long userId) {
-        // 활성 사용자 확인
-        User user = findActiveUser(userId);
+        UserInfo user = getActiveUser(userId);
 
-        // RT 생성
-        IssuedRefreshToken refreshToken = tokenProvider.createRefreshToken(user.getId());
-
-        // RT 해시 생성
-        String tokenHash = refreshTokenHasher.hash(refreshToken.value());
-
-        // Redis 저장
+        IssuedRefreshToken refreshToken = tokenProvider.createRefreshToken(user.id());
         RefreshTokenSession session = RefreshTokenSession.initial(
             refreshToken.sessionId(),
-            user.getId(),
+            user.id(),
             refreshToken.tokenId(),
-            tokenHash,
+            refreshTokenHasher.hash(refreshToken.value()),
             refreshToken.expiresAt()
         );
-
         refreshTokenStore.save(session);
 
         return new LoginSession(refreshToken.value(), refreshToken.expiresAt());
     }
 
     /**
-     * RT 재발급
-     * @param rawRefreshToken
-     * @return
+     * Access Token과 Refresh Token 재발급
+     * 비활성 사용자이거나 Refresh Token 재사용이 감지되면 사용자의 모든 세션 삭제
+     *
+     * @throws AuthException 토큰이 올바르지 않거나 세션이 없거나 재사용된 경우, 활성 사용자가 아닌 경우
      */
     public ReissueResult reissue(String rawRefreshToken) {
         ParsedRefreshToken parsed = parseRefreshToken(rawRefreshToken);
+        UserInfo user = getActiveUserOrRevokeSessions(parsed.userId());
 
-        User user = findActiveUserOrRevoke(parsed.userId());
+        IssuedAccessToken accessToken = tokenProvider.createAccessToken(user.id(), user.role());
+        IssuedRefreshToken newRefreshToken = tokenProvider.rotateRefreshToken(user.id(), parsed.sessionId());
 
-        IssuedAccessToken accessToken = tokenProvider.createAccessToken(
-            user.getId(),
-            user.getRole()
-        );
-
-        IssuedRefreshToken newRefreshToken = tokenProvider.rotateRefreshToken(
-            user.getId(),
-            parsed.sessionId()
-        );
-
-        String presentedHash = refreshTokenHasher.hash(rawRefreshToken);
-
-        String newTokenHash = refreshTokenHasher.hash(newRefreshToken.value());
-
-        Instant graceUntil = Instant.now().plus(REFRESH_TOKEN_GRACE_PERIOD);
-
-        RefreshTokenRotationStatus status = refreshTokenStore.rotate(
-            new RefreshTokenRotationCommand(
-                user.getId(),
-                parsed.sessionId(),
-                parsed.tokenId(),
-                presentedHash,
-                newRefreshToken.tokenId(),
-                newTokenHash,
-                graceUntil,
-                newRefreshToken.expiresAt()
-            )
-        );
-
-        handleRotationStatus(status, user.getId());
+        RefreshTokenRotationStatus status = refreshTokenStore.rotate(new RefreshTokenRotationCommand(
+            user.id(),
+            parsed.sessionId(),
+            parsed.tokenId(),
+            refreshTokenHasher.hash(rawRefreshToken),
+            newRefreshToken.tokenId(),
+            refreshTokenHasher.hash(newRefreshToken.value()),
+            Instant.now().plus(REFRESH_TOKEN_GRACE_PERIOD),
+            newRefreshToken.expiresAt()
+        ));
+        handleRotationStatus(status, user.id());
 
         return new ReissueResult(
             accessToken.value(),
@@ -113,82 +94,52 @@ public class AuthService {
     }
 
     /**
-     * 로그아웃 처리
-     * @param rawRefreshToken
+     * 로그아웃 처리(해당 세션만 삭제)
+     * 로그아웃은 실패하지 않아야 하므로 비어 있거나 해석할 수 없는 토큰은 무시
      */
     public void logout(String rawRefreshToken) {
-        if(rawRefreshToken == null || rawRefreshToken.isBlank()) {
+        if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
             return;
         }
 
         ParsedRefreshToken parsed;
-
-        try{
+        try {
             parsed = tokenProvider.parseRefreshToken(rawRefreshToken);
-        } catch(JwtException | IllegalArgumentException e) {
+        } catch (JwtException | IllegalArgumentException exception) {
             return;
         }
 
         refreshTokenStore.delete(parsed.userId(), parsed.sessionId());
     }
 
-
-
-    /**
-     * RT 파싱
-     * @param rawRefreshToken
-     * @return
-     */
-    private ParsedRefreshToken parseRefreshToken(
-        String rawRefreshToken
-    ) {
+    private ParsedRefreshToken parseRefreshToken(String rawRefreshToken) {
         try {
-            return tokenProvider.parseRefreshToken(
-                rawRefreshToken
-            );
-        } catch (JwtException | IllegalArgumentException e) {
-            throw new AuthException(AuthErrorCode.INVALID_REFRESH_TOKEN, e);
+            return tokenProvider.parseRefreshToken(rawRefreshToken);
+        } catch (JwtException | IllegalArgumentException exception) {
+            throw new AuthException(AuthErrorCode.INVALID_REFRESH_TOKEN, exception);
         }
     }
 
-    /**
-     * 활성 사용자 조회
-     * @param userId
-     * @return
-     */
-    private User findActiveUser(Long userId) {
-        return userRepository.findByIdAndActiveTrue(userId)
+    private UserInfo getActiveUser(Long userId) {
+        return userService.findActiveUserInfo(userId)
             .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_ACTIVE));
     }
 
-    /**
-     * 비활성 사용자 RT 제거
-     * @param userId
-     * @return
-     */
-    private User findActiveUserOrRevoke(Long userId) {
+    /** 탈퇴했거나 비활성화된 사용자의 남은 세션이 다시 쓰이지 않도록 전체 삭제 */
+    private UserInfo getActiveUserOrRevokeSessions(Long userId) {
         try {
-            return findActiveUser(userId);
+            return getActiveUser(userId);
         } catch (AuthException exception) {
             refreshTokenStore.deleteAllByUserId(userId);
             throw exception;
         }
     }
 
-    /**
-     * Redis Lua script 결과 처리
-     * ROTATED : 정상 교체
-     * NOT_FOUND : 토큰 없음
-     * REUSE_DETECTED : 토큰 재사용
-     * @param status
-     * @param userId
-     */
-    private void handleRotationStatus(
-        RefreshTokenRotationStatus status,
-        Long userId
-    ) {
+    /** 재사용 감지 시 탈취 가능성이 있어 사용자의 모든 세션 삭제 */
+    private void handleRotationStatus(RefreshTokenRotationStatus status, Long userId) {
         switch (status) {
-            case ROTATED -> {} // 정상적으로 교체됐으므로 추가 작업 없음
+            case ROTATED -> {
+            }
             case NOT_FOUND -> throw new AuthException(AuthErrorCode.REFRESH_TOKEN_NOT_FOUND);
             case REUSE_DETECTED -> {
                 refreshTokenStore.deleteAllByUserId(userId);
@@ -196,6 +147,4 @@ public class AuthService {
             }
         }
     }
-
-
 }

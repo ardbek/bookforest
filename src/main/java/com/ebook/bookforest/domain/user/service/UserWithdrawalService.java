@@ -17,6 +17,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 회원 탈퇴 서비스
+ * 소셜 연동 해제는 외부 API 호출이라 작업만 기록하고, 탈퇴 커밋 후 이벤트로 처리
+ */
 @Service
 @RequiredArgsConstructor
 public class UserWithdrawalService {
@@ -30,48 +34,35 @@ public class UserWithdrawalService {
     private final SocialUnlinkTaskCreationService taskCreationService;
     private final ApplicationEventPublisher eventPublisher;
 
-
     /**
      * 회원 탈퇴
-     * @param userId
+     * 로그인 세션, 즐겨찾기, 소셜 계정을 삭제하고 사용자는 개인정보를 지운 비활성 상태로 보존
+     *
+     * @throws UserException 사용자가 없는 경우 USER_NOT_FOUND, 이미 탈퇴한 경우 USER_ALREADY_WITHDRAWN
      */
     @Transactional
     public void withdraw(Long userId) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() ->
-                new UserException(UserErrorCode.USER_NOT_FOUND)
-            );
-
+            .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND));
         if (!user.isActive()) {
-            throw new UserException(
-                UserErrorCode.USER_ALREADY_WITHDRAWN
-            );
+            throw new UserException(UserErrorCode.USER_ALREADY_WITHDRAWN);
         }
 
         LocalDateTime now = LocalDateTime.now();
-
         List<Long> taskIds = taskCreationService.createTasks(userId, now);
 
-        // RT 삭제
         refreshTokenStore.deleteAllByUserId(userId);
-        // 즐겨찾기 데이터 삭제
         favoriteBookRepository.deleteAllByUser_Id(userId);
         favoriteLibraryRepository.deleteAllByUser_Id(userId);
-        // 외래키를 가진 Credential을 먼저 삭제
+
+        // 소셜 계정을 참조하는 Credential을 먼저 삭제해야 외래키 오류가 나지 않음
         credentialRepository.deleteAllBySocialAccount_User_Id(userId);
         credentialRepository.flush();
-
-        // 소셜 로그인 계정 삭제
         socialAccountRepository.deleteAllByUser_Id(userId);
         socialAccountRepository.flush();
 
         user.withdraw(now);
 
-        eventPublisher.publishEvent(
-            new SocialUnlinkTasksCreatedEvent(taskIds)
-        );
-
+        eventPublisher.publishEvent(new SocialUnlinkTasksCreatedEvent(taskIds));
     }
-
-
 }

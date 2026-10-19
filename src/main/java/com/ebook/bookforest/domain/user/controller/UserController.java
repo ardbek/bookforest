@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 로그인 사용자 계정 API
+ */
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -19,17 +22,14 @@ public class UserController {
     private final UserWithdrawalService userWithdrawalService;
     private final RefreshTokenCookieManager cookieManager;
 
-    /**
-     * 회원 탈퇴
-     * @param principal
-     * @param response
-     * @return
-     */
+    /** 회원 탈퇴 */
     @DeleteMapping("/me")
-    public ResponseEntity<Void> withdraw(@AuthenticationPrincipal JwtPrincipal principal, HttpServletResponse response) {
+    public ResponseEntity<Void> withdraw(
+        @AuthenticationPrincipal JwtPrincipal principal,
+        HttpServletResponse response
+    ) {
         userWithdrawalService.withdraw(principal.userId());
         cookieManager.expire(response);
-
         return ResponseEntity.noContent().build();
     }
 }

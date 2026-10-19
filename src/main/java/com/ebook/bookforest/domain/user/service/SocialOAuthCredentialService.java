@@ -1,11 +1,11 @@
 package com.ebook.bookforest.domain.user.service;
 
+import com.ebook.bookforest.domain.user.crypto.OAuthTokenCipher;
 import com.ebook.bookforest.domain.user.entity.SocialAccount;
 import com.ebook.bookforest.domain.user.entity.SocialOAuthCredential;
 import com.ebook.bookforest.domain.user.enums.SocialProvider;
 import com.ebook.bookforest.domain.user.repository.SocialAccountRepository;
 import com.ebook.bookforest.domain.user.repository.SocialOAuthCredentialRepository;
-import com.ebook.bookforest.global.security.crypto.OAuthTokenCipher;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
@@ -13,6 +13,10 @@ import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 소셜 플랫폼 토큰 저장 서비스
+ * 네이버 연동 해제에 필요한 토큰을 로그인할 때마다 암호화해 보관
+ */
 @Service
 @RequiredArgsConstructor
 public class SocialOAuthCredentialService {
@@ -22,11 +26,10 @@ public class SocialOAuthCredentialService {
     private final OAuthTokenCipher tokenCipher;
 
     /**
-     * 소셜 플랫폼에서 발급 받은 Access/Refresh Token을 암호화 하여 저장하거나 갱신
-     * @param provider
-     * @param providerSubject
-     * @param accessToken
-     * @param refreshToken
+     * 소셜 플랫폼 토큰 저장 또는 갱신(암호화 후 저장)
+     * 카카오는 연동 해제를 Admin Key로 하므로 저장하지 않음
+     *
+     * @param refreshToken 소셜 플랫폼이 재로그인 때 다시 주지 않을 수 있어 null 허용, null이면 기존 값 유지
      */
     @Transactional
     public void saveOrUpdate(
@@ -37,8 +40,7 @@ public class SocialOAuthCredentialService {
     ) {
         validateRequest(provider, providerSubject, accessToken);
 
-        // 카카오는 연동 해제를 Admin Key로 진행하기 때문에 저장 x
-        if(provider == SocialProvider.KAKAO) {
+        if (provider == SocialProvider.KAKAO) {
             return;
         }
 
@@ -56,9 +58,6 @@ public class SocialOAuthCredentialService {
 
     }
 
-    /**
-     * SocialProvider와 providerSubject에 해당하는 SocialAccount 조회
-     */
     private SocialAccount findSocialAccount(SocialProvider provider, String providerSubject) {
         return socialAccountRepository
             .findBySocialProviderAndProviderSubject(
@@ -70,29 +69,15 @@ public class SocialOAuthCredentialService {
             );
     }
 
-    /**
-     * Credential이 없는 계정인 경우 Credential 객체 생성
-     */
     private SocialOAuthCredential createCredential(SocialAccount socialAccount) {
-        return SocialOAuthCredential.builder()
-            .socialAccount(socialAccount)
-            .build();
+        return SocialOAuthCredential.create(socialAccount);
     }
 
-    /**
-     * Access Token은 로그인할 때마다 갱신
-     */
     private void updateAccessToken(SocialOAuthCredential credential, OAuth2AccessToken accessToken) {
         String encryptedAccessToken = tokenCipher.encrypt(accessToken.getTokenValue());
-        credential.updateAccessToken(encryptedAccessToken,accessToken.getExpiresAt());
+        credential.updateAccessToken(encryptedAccessToken, accessToken.getExpiresAt());
     }
 
-    /**
-     * 새 Refresh Token이 전달된 경우에만 갱신합니다.
-     *
-     * 소셜 플랫폼은 재로그인할 때 Refresh Token을
-     * 다시 내려주지 않을 수 있으므로 null이면 기존 값을 유지합니다.
-     */
     private void updateRefreshTokenIfPresent(
         SocialOAuthCredential credential,
         OAuth2RefreshToken refreshToken

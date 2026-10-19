@@ -1,10 +1,9 @@
 package com.ebook.bookforest.domain.user.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.when;
+import com.ebook.bookforest.support.SocialUnlinkTaskFixture;
+import static com.ebook.bookforest.support.EntityIds.withId;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 
 import com.ebook.bookforest.domain.user.entity.SocialUnlinkTask;
 import com.ebook.bookforest.domain.user.enums.ProviderTokenType;
@@ -37,28 +36,25 @@ class SocialUnlinkTaskStateServiceTest {
 
     @BeforeEach
     void setUp() {
-        task = SocialUnlinkTask.builder()
-            .id(TASK_ID)
-            .socialProvider(SocialProvider.NAVER)
-            .providerSubject("naver-user-id")
-            .providerTokenCiphertext("encrypted-token")
-            .providerTokenType(ProviderTokenType.REFRESH_TOKEN)
-            .status(SocialUnlinkStatus.PENDING)
-            .retryCount(0)
-            .nextRetryAt(NOW)
-            .build();
+        task = withId(SocialUnlinkTask.createPending(
+            SocialProvider.NAVER,
+            "naver-user-id",
+            "encrypted-token",
+            ProviderTokenType.REFRESH_TOKEN,
+            NOW
+        ), TASK_ID);
 
-        when(taskRepository.findByIdForUpdate(TASK_ID))
-            .thenReturn(Optional.of(task));
+        given(taskRepository.findByIdForUpdate(TASK_ID))
+            .willReturn(Optional.of(task));
     }
 
     @Test
     void 처리_가능한_작업을_선점한다() {
         Optional<SocialUnlinkWork> claimed = service.claim(TASK_ID, NOW);
 
-        assertTrue(claimed.isPresent());
-        assertEquals(TASK_ID, claimed.orElseThrow().taskId());
-        assertEquals(SocialUnlinkStatus.PROCESSING, task.getStatus());
+        assertThat(claimed.isPresent()).isTrue();
+        assertThat(claimed.orElseThrow().taskId()).isEqualTo(TASK_ID);
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.PROCESSING);
     }
 
     @Test
@@ -68,8 +64,8 @@ class SocialUnlinkTaskStateServiceTest {
             NOW.minusSeconds(1)
         );
 
-        assertTrue(claimed.isEmpty());
-        assertEquals(SocialUnlinkStatus.PENDING, task.getStatus());
+        assertThat(claimed).isEmpty();
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.PENDING);
     }
 
     @Test
@@ -85,15 +81,9 @@ class SocialUnlinkTaskStateServiceTest {
                 failedAt
             );
 
-            assertEquals(
-                SocialUnlinkStatus.RETRY_WAITING,
-                task.getStatus()
-            );
-            assertEquals(retry, task.getRetryCount());
-            assertEquals(
-                failedAt.plusMinutes(1L << (retry - 1)),
-                task.getNextRetryAt()
-            );
+            assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.RETRY_WAITING);
+            assertThat(task.getRetryCount()).isEqualTo(retry);
+            assertThat(task.getNextRetryAt()).isEqualTo(failedAt.plusMinutes(1L << (retry - 1)));
         }
 
         task.startProcessing();
@@ -104,10 +94,10 @@ class SocialUnlinkTaskStateServiceTest {
             NOW.plusHours(6)
         );
 
-        assertEquals(SocialUnlinkStatus.FAILED, task.getStatus());
-        assertEquals(5, task.getRetryCount());
-        assertEquals("TEMPORARY_ERROR", task.getLastErrorCode());
-        assertFalse(task.isReady(NOW.plusDays(1)));
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.FAILED);
+        assertThat(task.getRetryCount()).isEqualTo(5);
+        assertThat(task.getLastErrorCode()).isEqualTo("TEMPORARY_ERROR");
+        assertThat(task.isReady(NOW.plusDays(1))).isFalse();
     }
 
     @Test
@@ -121,9 +111,9 @@ class SocialUnlinkTaskStateServiceTest {
             NOW
         );
 
-        assertEquals(SocialUnlinkStatus.FAILED, task.getStatus());
-        assertEquals(0, task.getRetryCount());
-        assertEquals("INVALID_TOKEN", task.getLastErrorCode());
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.FAILED);
+        assertThat(task.getRetryCount()).isEqualTo(0);
+        assertThat(task.getLastErrorCode()).isEqualTo("INVALID_TOKEN");
     }
 
     @Test
@@ -132,42 +122,42 @@ class SocialUnlinkTaskStateServiceTest {
 
         boolean recovered = service.recoverStaleProcessing(TASK_ID, NOW);
 
-        assertTrue(recovered);
-        assertEquals(SocialUnlinkStatus.RETRY_WAITING, task.getStatus());
-        assertEquals(1, task.getRetryCount());
-        assertEquals("PROCESSING_TIMEOUT", task.getLastErrorCode());
-        assertEquals(NOW.plusMinutes(1), task.getNextRetryAt());
+        assertThat(recovered).isTrue();
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.RETRY_WAITING);
+        assertThat(task.getRetryCount()).isEqualTo(1);
+        assertThat(task.getLastErrorCode()).isEqualTo("PROCESSING_TIMEOUT");
+        assertThat(task.getNextRetryAt()).isEqualTo(NOW.plusMinutes(1));
     }
 
     @Test
     void 처리중이_아닌_작업은_복구하지_않는다() {
         boolean recovered = service.recoverStaleProcessing(TASK_ID, NOW);
 
-        assertFalse(recovered);
-        assertEquals(SocialUnlinkStatus.PENDING, task.getStatus());
-        assertEquals(0, task.getRetryCount());
+        assertThat(recovered).isFalse();
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.PENDING);
+        assertThat(task.getRetryCount()).isEqualTo(0);
     }
 
     @Test
     void 재시도_한도에_도달한_처리중_작업은_실패로_종료한다() {
-        task = SocialUnlinkTask.builder()
-            .id(TASK_ID)
-            .socialProvider(SocialProvider.NAVER)
-            .providerSubject("naver-user-id")
-            .providerTokenCiphertext("encrypted-token")
-            .providerTokenType(ProviderTokenType.REFRESH_TOKEN)
-            .status(SocialUnlinkStatus.PROCESSING)
-            .retryCount(5)
-            .build();
-        when(taskRepository.findByIdForUpdate(TASK_ID))
-            .thenReturn(Optional.of(task));
+        task = SocialUnlinkTaskFixture.task(
+            TASK_ID,
+            SocialProvider.NAVER,
+            "naver-user-id",
+            "encrypted-token",
+            ProviderTokenType.REFRESH_TOKEN,
+            SocialUnlinkStatus.PROCESSING,
+            5
+        );
+        given(taskRepository.findByIdForUpdate(TASK_ID))
+            .willReturn(Optional.of(task));
 
         boolean recovered = service.recoverStaleProcessing(TASK_ID, NOW);
 
-        assertTrue(recovered);
-        assertEquals(SocialUnlinkStatus.FAILED, task.getStatus());
-        assertEquals(5, task.getRetryCount());
-        assertEquals("PROCESSING_TIMEOUT", task.getLastErrorCode());
-        assertNull(task.getNextRetryAt());
+        assertThat(recovered).isTrue();
+        assertThat(task.getStatus()).isEqualTo(SocialUnlinkStatus.FAILED);
+        assertThat(task.getRetryCount()).isEqualTo(5);
+        assertThat(task.getLastErrorCode()).isEqualTo("PROCESSING_TIMEOUT");
+        assertThat(task.getNextRetryAt()).isNull();
     }
 }

@@ -1,11 +1,12 @@
 package com.ebook.bookforest.domain.user.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import com.ebook.bookforest.support.SocialUnlinkTaskFixture;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import com.ebook.bookforest.domain.user.entity.SocialUnlinkTask;
 import com.ebook.bookforest.domain.user.enums.SocialProvider;
@@ -40,18 +41,18 @@ class SocialUnlinkRetrySchedulerTest {
         SocialUnlinkTask staleTask = task(1L, SocialUnlinkStatus.PROCESSING);
         SocialUnlinkTask readyTask = task(2L, SocialUnlinkStatus.PENDING);
 
-        when(taskRepository
+        given(taskRepository
             .findTop100ByStatusAndUpdatedAtLessThanEqualOrderByUpdatedAtAsc(
                 eq(SocialUnlinkStatus.PROCESSING),
                 any(LocalDateTime.class)
             ))
-            .thenReturn(List.of(staleTask));
-        when(taskRepository
+            .willReturn(List.of(staleTask));
+        given(taskRepository
             .findTop100ByStatusInAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
                 anyCollection(),
                 any(LocalDateTime.class)
             ))
-            .thenReturn(List.of(readyTask));
+            .willReturn(List.of(readyTask));
 
         scheduler.processTasks();
 
@@ -60,31 +61,27 @@ class SocialUnlinkRetrySchedulerTest {
         ArgumentCaptor<LocalDateTime> now =
             ArgumentCaptor.forClass(LocalDateTime.class);
 
-        verify(taskRepository)
+        then(taskRepository).should()
             .findTop100ByStatusAndUpdatedAtLessThanEqualOrderByUpdatedAtAsc(
                 eq(SocialUnlinkStatus.PROCESSING),
                 staleBefore.capture()
             );
-        verify(taskRepository)
+        then(taskRepository).should()
             .findTop100ByStatusInAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
                 anyCollection(),
                 now.capture()
             );
-        assertEquals(now.getValue().minusMinutes(10), staleBefore.getValue());
-        verify(stateService).recoverStaleProcessing(1L, now.getValue());
-        verify(processor).process(2L);
+        assertThat(staleBefore.getValue()).isEqualTo(now.getValue().minusMinutes(10));
+        then(stateService).should().recoverStaleProcessing(1L, now.getValue());
+        then(processor).should().process(2L);
     }
 
     private SocialUnlinkTask task(
         Long id,
         SocialUnlinkStatus status
     ) {
-        return SocialUnlinkTask.builder()
-            .id(id)
-            .socialProvider(SocialProvider.KAKAO)
-            .providerSubject("provider-user-" + id)
-            .status(status)
-            .retryCount(0)
-            .build();
+        return SocialUnlinkTaskFixture.task(
+            id, SocialProvider.KAKAO, "provider-user-" + id, null, null, status, 0
+        );
     }
 }

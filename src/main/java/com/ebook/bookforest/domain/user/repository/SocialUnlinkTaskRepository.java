@@ -13,60 +13,36 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * 소셜 연동 해제 작업 Repository
+ */
 public interface SocialUnlinkTaskRepository extends JpaRepository<SocialUnlinkTask, Long> {
 
+    /** 연동 해제 작업 단건 조회(비관적 쓰기 락), 여러 서버의 동시 처리 방지 */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
         select task
         from SocialUnlinkTask task
         where task.id = :taskId
         """)
-    Optional<SocialUnlinkTask> findByIdForUpdate(
-        @Param("taskId") Long taskId
-    );
+    Optional<SocialUnlinkTask> findByIdForUpdate(@Param("taskId") Long taskId);
 
-    /**
-     * 탈퇴 직후 생성된 작업 처리
-     * @param taskIds
-     * @return
-     */
-    List<SocialUnlinkTask> findAllByIdIn(Collection<Long> taskIds);
-
-    /**
-     * 연동 해제 중인 소셜 계정 재가입 차단
-     * @param socialProvider
-     * @param providerSubject
-     * @param statuses
-     * @return
-     */
+    /** 연동 해제 작업 존재 여부 조회(소셜 계정별, 상태별), 해제 중인 계정의 재가입 차단용 */
     boolean existsBySocialProviderAndProviderSubjectAndStatusIn(
         SocialProvider socialProvider,
         String providerSubject,
         Collection<SocialUnlinkStatus> statuses
     );
 
-    /**
-     * 재시도할 작업 100개씩 조회
-     * @param statuses
-     * @param now
-     * @return
-     */
-    List<SocialUnlinkTask>
-    findTop100ByStatusInAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
+    /** 연동 해제 작업 조회(처리 시점 도래, 재시도 시각순, 최대 100건) */
+    List<SocialUnlinkTask> findTop100ByStatusInAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
         Collection<SocialUnlinkStatus> statuses,
         LocalDateTime now
     );
 
-    /**
-     * 제한 시간보다 오래 PROCESSING 상태에 머문 작업 조회
-     * @param status
-     * @param staleBefore
-     * @return
-     */
-    List<SocialUnlinkTask>
-    findTop100ByStatusAndUpdatedAtLessThanEqualOrderByUpdatedAtAsc(
+    /** 연동 해제 작업 조회(제한 시간 넘게 처리 중, 오래된 순, 최대 100건) */
+    List<SocialUnlinkTask> findTop100ByStatusAndUpdatedAtLessThanEqualOrderByUpdatedAtAsc(
         SocialUnlinkStatus status,
         LocalDateTime staleBefore
     );
-
 }

@@ -7,16 +7,18 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/**
+ * 소셜 계정 Repository
+ */
 public interface SocialAccountRepository extends JpaRepository<SocialAccount, Long> {
 
     @EntityGraph(attributePaths = "user")
-    Optional<SocialAccount> findBySocialProviderAndProviderSubject(SocialProvider socialProvider, String providerSubject);
-
-    boolean existsByUser_IdAndSocialProvider(Long userId, SocialProvider socialProvider);
+    Optional<SocialAccount> findBySocialProviderAndProviderSubject(
+        SocialProvider socialProvider,
+        String providerSubject
+    );
 
     List<SocialAccount> findAllByUser_Id(Long userId);
-
-    long countByUser_Id(Long userId);
 
     long deleteAllByUser_Id(Long userId);
 }

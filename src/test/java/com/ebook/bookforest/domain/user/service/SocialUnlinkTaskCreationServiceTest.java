@@ -1,8 +1,9 @@
 package com.ebook.bookforest.domain.user.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.Mockito.when;
+import com.ebook.bookforest.domain.user.entity.User;
+import static com.ebook.bookforest.support.EntityIds.withId;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 
 import com.ebook.bookforest.domain.user.entity.SocialAccount;
 import com.ebook.bookforest.domain.user.entity.SocialOAuthCredential;
@@ -39,38 +40,35 @@ class SocialUnlinkTaskCreationServiceTest {
         LocalDateTime now = LocalDateTime.of(2026, 7, 18, 12, 0);
         SocialAccount kakao = account(10L, SocialProvider.KAKAO, "kakao-id");
         SocialAccount naver = account(20L, SocialProvider.NAVER, "naver-id");
-        SocialOAuthCredential credential = SocialOAuthCredential.builder()
-            .id(30L)
-            .socialAccount(naver)
-            .accessTokenCiphertext("encrypted-access")
-            .refreshTokenCiphertext("encrypted-refresh")
-            .build();
+        SocialOAuthCredential credential = withId(SocialOAuthCredential.create(naver), 30L);
+        credential.updateAccessToken("encrypted-access", null);
+        credential.updateRefreshToken("encrypted-refresh");
 
-        when(socialAccountRepository.findAllByUser_Id(1L))
-            .thenReturn(List.of(kakao, naver));
-        when(credentialRepository.findAllBySocialAccount_User_Id(1L))
-            .thenReturn(List.of(credential));
+        given(socialAccountRepository.findAllByUser_Id(1L))
+            .willReturn(List.of(kakao, naver));
+        given(credentialRepository.findAllBySocialAccount_User_Id(1L))
+            .willReturn(List.of(credential));
 
         ArgumentCaptor<List<SocialUnlinkTask>> captor =
             ArgumentCaptor.forClass(List.class);
-        when(taskRepository.saveAllAndFlush(captor.capture()))
-            .thenReturn(List.of(
-                SocialUnlinkTask.builder().id(100L).build(),
-                SocialUnlinkTask.builder().id(200L).build()
+        given(taskRepository.saveAllAndFlush(captor.capture()))
+            .willReturn(List.of(
+                withId(SocialUnlinkTask.createPending(SocialProvider.KAKAO, "kakao-id", null, null, now), 100L),
+                withId(SocialUnlinkTask.createPending(SocialProvider.NAVER, "naver-id", null, null, now), 200L)
             ));
 
         List<Long> taskIds = service.createTasks(1L, now);
 
-        assertEquals(List.of(100L, 200L), taskIds);
+        assertThat(taskIds).isEqualTo(List.of(100L, 200L));
         List<SocialUnlinkTask> tasks = captor.getValue();
         SocialUnlinkTask kakaoTask = tasks.get(0);
         SocialUnlinkTask naverTask = tasks.get(1);
 
-        assertNull(kakaoTask.getProviderTokenCiphertext());
-        assertNull(kakaoTask.getProviderTokenType());
-        assertEquals("encrypted-refresh", naverTask.getProviderTokenCiphertext());
-        assertEquals(ProviderTokenType.REFRESH_TOKEN, naverTask.getProviderTokenType());
-        assertEquals(now, naverTask.getNextRetryAt());
+        assertThat(kakaoTask.getProviderTokenCiphertext()).isNull();
+        assertThat(kakaoTask.getProviderTokenType()).isNull();
+        assertThat(naverTask.getProviderTokenCiphertext()).isEqualTo("encrypted-refresh");
+        assertThat(naverTask.getProviderTokenType()).isEqualTo(ProviderTokenType.REFRESH_TOKEN);
+        assertThat(naverTask.getNextRetryAt()).isEqualTo(now);
     }
 
     private SocialAccount account(
@@ -78,10 +76,11 @@ class SocialUnlinkTaskCreationServiceTest {
         SocialProvider provider,
         String subject
     ) {
-        return SocialAccount.builder()
-            .id(id)
+        SocialAccount account = SocialAccount.builder()
+            .user(User.create(null, null, null))
             .socialProvider(provider)
             .providerSubject(subject)
             .build();
+        return withId(account, id);
     }
 }

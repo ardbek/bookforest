@@ -18,6 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 회원 탈퇴 시 소셜 연동 해제 작업 생성 서비스
+ * 외부 API 호출은 탈퇴 커밋 이후에 하므로 여기서는 작업만 기록
+ */
 @Service
 @RequiredArgsConstructor
 public class SocialUnlinkTaskCreationService {
@@ -26,6 +30,12 @@ public class SocialUnlinkTaskCreationService {
     private final SocialOAuthCredentialRepository credentialRepository;
     private final SocialUnlinkTaskRepository taskRepository;
 
+    /**
+     * 사용자의 소셜 계정별 연동 해제 작업 생성
+     * 탈퇴와 같은 트랜잭션에서만 호출되도록 MANDATORY 전파 사용
+     *
+     * @return 생성한 작업 ID 목록, 탈퇴 커밋 후 이벤트로 처리
+     */
     @Transactional(propagation = Propagation.MANDATORY)
     public List<Long> createTasks(Long userId, LocalDateTime now) {
         List<SocialAccount> accounts =
@@ -72,6 +82,7 @@ public class SocialUnlinkTaskCreationService {
         );
     }
 
+    /** 네이버 연동 해제용 토큰 선택, 유효 기간이 긴 Refresh Token 우선 */
     private TokenSnapshot selectToken(
         SocialProvider provider,
         SocialOAuthCredential credential
