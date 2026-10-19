@@ -173,11 +173,45 @@ class SecurityConfigTest {
     }
 
     @Test
-    @DisplayName("Bearer 형식이 아닌 Authorization 헤더는 비로그인 허용 경로에서도 401 invalid_access_token")
-    void malformedHeaderIsRejectedEvenOnPublicPath() throws Exception {
-        mockMvc.perform(get("/api/platform").header(HttpHeaders.AUTHORIZATION, "Basic invalid"))
+    @DisplayName("Bearer 형식이 아닌 Authorization 헤더는 로그인 필요 경로에서 401 invalid_access_token")
+    void malformedHeaderIsRejectedOnProtectedPath() throws Exception {
+        mockMvc.perform(get(PROTECTED_PATH).header(HttpHeaders.AUTHORIZATION, "Basic invalid"))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("invalid_access_token"));
+    }
+
+    @Test
+    @DisplayName("비로그인 허용 경로는 잘못된 형식, 만료, 비활성 사용자의 토큰이어도 비로그인 요청으로 통과")
+    void tokenErrorsAreIgnoredOnPublicPath() throws Exception {
+        // given
+        given(tokenProvider.parseAccessToken(EXPIRED_TOKEN))
+            .willThrow(new ExpiredJwtException(null, null, "expired"));
+        givenValidToken();
+        given(userRepository.existsByIdAndActiveTrue(USER_ID)).willReturn(false);
+
+        // when, then
+        mockMvc.perform(get("/api/book/search/platforms").header(HttpHeaders.AUTHORIZATION, "Basic invalid"))
+            .andExpect(status().isOk())
+            .andExpect(content().string("anonymous"));
+        mockMvc.perform(get("/api/book/search/platforms").header(HttpHeaders.AUTHORIZATION, "Bearer " + EXPIRED_TOKEN))
+            .andExpect(status().isOk())
+            .andExpect(content().string("anonymous"));
+        mockMvc.perform(get("/api/book/search/platforms").header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN))
+            .andExpect(status().isOk())
+            .andExpect(content().string("anonymous"));
+    }
+
+    @Test
+    @DisplayName("비로그인 허용 경로에 유효한 토큰을 보내면 로그인 사용자로 처리")
+    void validTokenOnPublicPathAuthenticates() throws Exception {
+        // given
+        givenValidToken();
+        given(userRepository.existsByIdAndActiveTrue(USER_ID)).willReturn(true);
+
+        // when, then
+        mockMvc.perform(get("/api/book/search/platforms").header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN))
+            .andExpect(status().isOk())
+            .andExpect(content().string("user-1"));
     }
 
     @Test
@@ -227,6 +261,11 @@ class SecurityConfigTest {
         })
         String publicPath() {
             return "ok";
+        }
+
+        @GetMapping("/api/book/search/platforms")
+        String optionalLoginPath(@AuthenticationPrincipal JwtPrincipal principal) {
+            return principal == null ? "anonymous" : "user-" + principal.userId();
         }
 
         @PostMapping({"/api/reissue", "/api/logout"})

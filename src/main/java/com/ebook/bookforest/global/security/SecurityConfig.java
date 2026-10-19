@@ -11,7 +11,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -24,29 +23,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /**
  * 보안 필터 체인 설정
  * 세션 없이 Authorization 헤더의 Access Token으로 인증하고, 로그인은 소셜 OAuth2로만 처리
- * 경로별 허용 범위는 SecurityConfigTest가 검증
+ * 비로그인 허용 경로는 PublicRequestMatcher, 경로별 허용 범위는 SecurityConfigTest가 검증
  */
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private static final String[] INFRA_PATHS = {"/actuator/health", "/error"};
-    private static final String[] LOGIN_PATHS = {"/oauth2/**", "/login/oauth2/**", "/api/reissue", "/api/logout"};
-    private static final String[] PUBLIC_GET_PATHS = {
-        "/api/books/popular",
-        "/api/books/trending",
-        "/api/search-keywords/popular"
-    };
-    private static final String[] PUBLIC_PATHS = {
-        "/api/platform",
-        "/api/platform/**",
-        "/api/library",
-        "/api/library/**",
-        "/api/book",
-        "/api/book/**",
-        "/api/categories",
-        "/api/categories/**"
-    };
     /** 프론트 운영 도메인과 로컬, 내부망 개발 서버 */
     private static final List<String> ALLOWED_ORIGIN_PATTERNS = List.of(
         "http://bookforest.cc",
@@ -73,11 +55,7 @@ public class SecurityConfig {
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(INFRA_PATHS).permitAll()
-                .requestMatchers(LOGIN_PATHS).permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
-                .requestMatchers(PUBLIC_PATHS).permitAll()
+                .requestMatchers(new PublicRequestMatcher()).permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
